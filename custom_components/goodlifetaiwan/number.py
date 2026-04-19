@@ -1,9 +1,9 @@
-"""Number platform: scan_interval as a user-adjustable per-entry setting.
+"""Number platform: per-community poll interval.
 
-Replaces the pre-v0.2 Options flow for polling cadence. Lives on the
-account device as a CONFIG-category entity, so it's discoverable on the
-device page and automatable (e.g., raise cadence while out, drop at
-night) without being visible on the default dashboard.
+v0.3 change: one entity per community, on that community's device. The
+previous v0.2 design had a single account-level entity driving a shared
+coordinator; v0.3 splits coordinators per community so each has its own
+cadence.
 """
 
 from __future__ import annotations
@@ -19,15 +19,14 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    CONF_PHONE_NUMBER,
-    CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL_SEC,
     DOMAIN,
     MAX_SCAN_INTERVAL_SEC,
     MIN_SCAN_INTERVAL_SEC,
+    scan_interval_key,
 )
 from .coordinator import GoodLifeCoordinator
-from .entity import account_device_info, unique_id
+from .entity import community_device_info, unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,14 +37,14 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     bundle = hass.data[DOMAIN][entry.entry_id]
-    coordinator: GoodLifeCoordinator = bundle["coordinator"]
-    async_add_entities([ScanIntervalNumber(coordinator, entry)])
+    coordinators: dict[int, GoodLifeCoordinator] = bundle["coordinators"]
+    async_add_entities([PollIntervalNumber(coord, entry) for coord in coordinators.values()])
 
 
-class ScanIntervalNumber(CoordinatorEntity[GoodLifeCoordinator], NumberEntity):
+class PollIntervalNumber(CoordinatorEntity[GoodLifeCoordinator], NumberEntity):
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_translation_key = "scan_interval"
+    _attr_translation_key = "poll_interval"
     _attr_icon = "mdi:timer-sync-outline"
     _attr_mode = NumberMode.BOX
     _attr_native_min_value = float(MIN_SCAN_INTERVAL_SEC)
@@ -56,24 +55,27 @@ class ScanIntervalNumber(CoordinatorEntity[GoodLifeCoordinator], NumberEntity):
     def __init__(self, coordinator: GoodLifeCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_unique_id = unique_id(entry.entry_id, None, "scan_interval")
-        self._attr_device_info = account_device_info(
-            entry.entry_id, entry.data.get(CONF_PHONE_NUMBER, "")
-        )
+        self._cu_id = coordinator.community_unit_id
+        self._attr_unique_id = unique_id(entry.entry_id, self._cu_id, "poll_interval")
+        self._attr_device_info = community_device_info(entry.entry_id, coordinator.community)
 
     @property
     def native_value(self) -> float:
-        return float(self._entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_SEC))
+        return float(
+            self._entry.options.get(scan_interval_key(self._cu_id), DEFAULT_SCAN_INTERVAL_SEC)
+        )
 
     async def async_set_native_value(self, value: float) -> None:
         new_val = int(value)
         self.hass.config_entries.async_update_entry(
             self._entry,
-            options={**self._entry.options, CONF_SCAN_INTERVAL: new_val},
+            options={
+                **self._entry.options,
+                scan_interval_key(self._cu_id): new_val,
+            },
         )
-        # Live-mutate the coordinator's interval and force an immediate poll
-        # so the new cadence is picked up without rebuilding the coordinator
-        # (which would lose in-memory package cache + QR snapshot).
+        # Live-mutate THIS community's coordinator and trigger an immediate
+        # poll so the new cadence takes effect without rebuilding anything.
         self.coordinator.update_interval = timedelta(seconds=new_val)
         await self.coordinator.async_request_refresh()
         self.async_write_ha_state()

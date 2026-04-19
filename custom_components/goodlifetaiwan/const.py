@@ -30,8 +30,24 @@ SERVICE_SUBMIT_CODE = "submit_code"
 CONF_PHONE_NUMBER = "phone_number"
 CONF_COMMUNITY_UNIT_IDS = "community_unit_ids"
 CONF_MEMBER_INFO = "member_info"
-CONF_SCAN_INTERVAL = "scan_interval_seconds"
-CONF_AUTO_REGENERATE_PICKUP_CODE = "auto_regenerate_pickup_code"
+
+# Per-community option key prefixes. v0.3+ stores these per community_unit_id;
+# v0.2 and earlier used flat entry-level keys (migrated on first v0.3 setup).
+OPT_SCAN_INTERVAL_PREFIX = "scan_interval_seconds__"
+OPT_AUTO_REGENERATE_PREFIX = "auto_regenerate_pickup_code__"
+
+# Pre-v0.3 entry-level option keys. Still referenced by the migration path.
+LEGACY_CONF_SCAN_INTERVAL = "scan_interval_seconds"
+LEGACY_CONF_AUTO_REGENERATE_PICKUP_CODE = "auto_regenerate_pickup_code"
+
+
+def scan_interval_key(community_unit_id: int) -> str:
+    return f"{OPT_SCAN_INTERVAL_PREFIX}{community_unit_id}"
+
+
+def auto_regenerate_key(community_unit_id: int) -> str:
+    return f"{OPT_AUTO_REGENERATE_PREFIX}{community_unit_id}"
+
 
 # Storage
 STORAGE_VERSION = 1

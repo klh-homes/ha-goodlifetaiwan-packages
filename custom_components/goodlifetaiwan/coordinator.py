@@ -1,8 +1,14 @@
-"""Polling coordinator: fetch unpicked packages per community, diff, fire events.
+"""Per-community coordinator: one instance per community_unit_id.
 
-Also owns the QR lifecycle: generation, expiry-time cache, optional auto-regen.
-The single ``async_generate_pickup_code`` method is shared by the service handler, the
-button entity, and the expiry timer so all three paths behave identically.
+Each coordinator owns:
+- A single ``CommunityState`` with packages, last_success, QR snapshot.
+- Its own ``update_interval`` and auto-regenerate preference, read from
+  per-community keys in ``entry.options``.
+- The QR expiry timer for its community.
+
+This is a v0.3 change from v0.2's "one coordinator, many communities" shape.
+Coordinators share the entry's ``AuthManager`` so token refreshes are
+serialised across communities.
 """
 
 from __future__ import annotations
@@ -12,7 +18,7 @@ import io
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
@@ -23,15 +29,13 @@ from .api import ApiResponseError, GoodLifeApi, NetworkError
 from .auth import AuthManager, AuthRequired
 from .const import (
     AUTH_STATE_OK,
-    CONF_AUTO_REGENERATE_PICKUP_CODE,
     DEFAULT_SCAN_INTERVAL_SEC,
     DOMAIN,
     EVENT_PACKAGE_ARRIVED,
     EVENT_PACKAGE_PICKED,
+    auto_regenerate_key,
+    scan_interval_key,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,8 +92,8 @@ class CommunityState:
     qr_expire_unsub: CALLBACK_TYPE | None = None
 
 
-class GoodLifeCoordinator(DataUpdateCoordinator[dict[int, CommunityState]]):
-    """One coordinator per config entry; fans out to every selected community."""
+class GoodLifeCoordinator(DataUpdateCoordinator[CommunityState]):
+    """One coordinator per community. Owns that community's poll cadence, QR state, expiry timer."""
 
     def __init__(
         self,
@@ -97,30 +101,36 @@ class GoodLifeCoordinator(DataUpdateCoordinator[dict[int, CommunityState]]):
         entry: ConfigEntry,
         api: GoodLifeApi,
         auth: AuthManager,
-        communities: list[CommunityState],
-        scan_interval_seconds: int = DEFAULT_SCAN_INTERVAL_SEC,
+        community: CommunityState,
     ) -> None:
         self.entry = entry
         self.api = api
         self.auth = auth
-        self.communities: dict[int, CommunityState] = {c.community_unit_id: c for c in communities}
+        self.community: CommunityState = community
         self._first_poll_done = False
         self._last_check: str | None = None
 
+        interval = int(
+            entry.options.get(
+                scan_interval_key(community.community_unit_id),
+                DEFAULT_SCAN_INTERVAL_SEC,
+            )
+        )
         super().__init__(
             hass,
             _LOGGER,
-            name=f"{DOMAIN}_{entry.entry_id[:8]}",
-            update_interval=timedelta(seconds=scan_interval_seconds),
+            name=f"{DOMAIN}_{entry.entry_id[:8]}_c{community.community_unit_id}",
+            update_interval=timedelta(seconds=interval),
         )
+
+    # Convenience shortcuts for entity code that used to read `coordinator.communities`.
+    @property
+    def community_unit_id(self) -> int:
+        return self.community.community_unit_id
 
     @property
     def last_check(self) -> str | None:
         return self._last_check
-
-    @property
-    def community_ids(self) -> list[int]:
-        return [c.community_id for c in self.communities.values()]
 
     @property
     def next_poll(self) -> str | None:
@@ -129,13 +139,7 @@ class GoodLifeCoordinator(DataUpdateCoordinator[dict[int, CommunityState]]):
         target = datetime.now(UTC) + self.update_interval
         return target.astimezone().isoformat(timespec="seconds")
 
-    def community_by_id(self, community_id: int) -> CommunityState | None:
-        for state in self.communities.values():
-            if state.community_id == community_id:
-                return state
-        return None
-
-    async def _async_update_data(self) -> dict[int, CommunityState]:
+    async def _async_update_data(self) -> CommunityState:
         self._last_check = _now_iso()
         try:
             access = await self.auth.async_ensure_access_token()
@@ -144,32 +148,30 @@ class GoodLifeCoordinator(DataUpdateCoordinator[dict[int, CommunityState]]):
         except NetworkError as err:
             raise UpdateFailed(f"network: {err}") from err
 
-        results: dict[int, CommunityState] = {}
-        for cu_id, state in self.communities.items():
-            try:
-                items = await self.api.unpicked_packages(
-                    access, state.community_id, state.community_unit_id
-                )
-            except ApiResponseError as err:
-                raise UpdateFailed(f"api error: {err}") from err
-            except NetworkError as err:
-                raise UpdateFailed(f"network: {err}") from err
+        state = self.community
+        try:
+            items = await self.api.unpicked_packages(
+                access, state.community_id, state.community_unit_id
+            )
+        except ApiResponseError as err:
+            raise UpdateFailed(f"api error: {err}") from err
+        except NetworkError as err:
+            raise UpdateFailed(f"network: {err}") from err
 
-            new_map = {
-                item["packageId"]: _summarize(item, state) for item in items if "packageId" in item
-            }
+        new_map = {
+            item["packageId"]: _summarize(item, state) for item in items if "packageId" in item
+        }
 
-            if self._first_poll_done:
-                self._diff_and_fire(state, new_map)
+        if self._first_poll_done:
+            self._diff_and_fire(new_map)
 
-            state.packages = new_map
-            state.last_success = self._last_check
-            results[cu_id] = state
-
+        state.packages = new_map
+        state.last_success = self._last_check
         self._first_poll_done = True
-        return results
+        return state
 
-    def _diff_and_fire(self, state: CommunityState, new_map: dict[int, PackageSummary]) -> None:
+    def _diff_and_fire(self, new_map: dict[int, PackageSummary]) -> None:
+        state = self.community
         old_ids = set(state.packages)
         new_ids = set(new_map)
 
@@ -211,8 +213,8 @@ class GoodLifeCoordinator(DataUpdateCoordinator[dict[int, CommunityState]]):
 
     # --- QR generation & lifecycle ---------------------------------------
 
-    async def async_generate_pickup_code(self, community_unit_id: int) -> QrSnapshot:
-        """Generate a fresh QR for the community and publish it to entities.
+    async def async_generate_pickup_code(self) -> QrSnapshot:
+        """Generate a fresh pickup code + QR PNG and publish to entities.
 
         Shared by three call sites:
         - ``request_pickup_code`` service handler
@@ -220,13 +222,10 @@ class GoodLifeCoordinator(DataUpdateCoordinator[dict[int, CommunityState]]):
         - auto-regen timer (when the toggle is on)
 
         Raises :class:`AuthRequired`, :class:`ApiResponseError`, or
-        :class:`NetworkError` on failure; callers are expected to translate
-        these to their appropriate user-facing error types.
+        :class:`NetworkError` on failure; callers translate to their own
+        user-facing error types.
         """
-        state = self.communities.get(community_unit_id)
-        if state is None:
-            raise ValueError(f"unknown community_unit_id={community_unit_id}")
-
+        state = self.community
         async with state.qr_lock:
             access = await self.auth.async_ensure_access_token()
             data = await self.api.create_checkout_verification_code(
@@ -244,72 +243,56 @@ class GoodLifeCoordinator(DataUpdateCoordinator[dict[int, CommunityState]]):
                 png_bytes=png_bytes,
             )
 
-        await self.async_set_qr_snapshot(community_unit_id, snap)
+        await self.async_set_qr_snapshot(snap)
         return snap
 
-    async def async_set_qr_snapshot(self, community_unit_id: int, snap: QrSnapshot) -> None:
-        state = self.communities.get(community_unit_id)
-        if state is None:
-            return
-
-        # Replace any pending expiry timer with one pointing at the new expires_at.
-        self._cancel_expire_timer(state)
-
+    async def async_set_qr_snapshot(self, snap: QrSnapshot) -> None:
+        state = self.community
+        self._cancel_expire_timer()
         state.qr = snap
-        # Push update to entities immediately — CoordinatorEntity listeners will
-        # call async_write_ha_state, which (for image.qr) now updates the
-        # image_last_updated attribute and exposes a fresh ISO-timestamp state.
-        self.async_set_updated_data(self.data or self.communities)
+        # Push update to entities immediately.
+        self.async_set_updated_data(state)
 
         expiry = _parse_expires_at(snap.expires_at)
         if expiry is not None:
             state.qr_expire_unsub = async_track_point_in_time(
-                self.hass, self._on_qr_expired_factory(community_unit_id), expiry
+                self.hass, self._on_qr_expired, expiry
             )
 
-    def _cancel_expire_timer(self, state: CommunityState) -> None:
+    def _cancel_expire_timer(self) -> None:
+        state = self.community
         if state.qr_expire_unsub is not None:
             state.qr_expire_unsub()
             state.qr_expire_unsub = None
 
-    def _on_qr_expired_factory(self, community_unit_id: int) -> Callable[[datetime], None]:
-        """Return a HA-callable suited for async_track_point_in_time."""
+    @callback
+    def _on_qr_expired(self, _now: datetime) -> None:
+        self.hass.async_create_task(self._handle_expiry())
 
-        @callback
-        def _fire(_now: datetime) -> None:
-            self.hass.async_create_task(self._handle_expiry(community_unit_id))
-
-        return _fire
-
-    async def _handle_expiry(self, community_unit_id: int) -> None:
-        state = self.communities.get(community_unit_id)
-        if state is None:
-            return
+    async def _handle_expiry(self) -> None:
+        state = self.community
         state.qr_expire_unsub = None
 
-        auto = self.entry.options.get(CONF_AUTO_REGENERATE_PICKUP_CODE, False)
+        auto = self.entry.options.get(auto_regenerate_key(state.community_unit_id), True)
         if auto and self.auth.state == AUTH_STATE_OK:
             try:
-                await self.async_generate_pickup_code(community_unit_id)
+                await self.async_generate_pickup_code()
                 return
             except (AuthRequired, ApiResponseError, NetworkError) as err:
                 _LOGGER.warning(
-                    "auto-regenerate QR failed for community=%s: %s",
+                    "auto-regenerate pickup code failed for community=%s: %s",
                     state.community_id,
                     err,
                 )
-                # fall through and clear state below
+                # fall through — clear state below
 
-        # Either auto-regen is off, auth is not OK, or regen failed — clear
-        # the stale snapshot so dashboards show "no active code" rather than
-        # an expired one.
+        # Auto-regen off, auth not OK, or regen failed → clear snapshot.
         state.qr = None
-        self.async_set_updated_data(self.data or self.communities)
+        self.async_set_updated_data(state)
 
-    async def async_shutdown_qr_timers(self) -> None:
-        """Cancel every pending expiry timer. Called from async_unload_entry."""
-        for state in self.communities.values():
-            self._cancel_expire_timer(state)
+    async def async_shutdown_qr_timer(self) -> None:
+        """Cancel the pending expiry timer. Called from async_unload_entry."""
+        self._cancel_expire_timer()
 
 
 def _render_qr_png(payload: str) -> bytes:

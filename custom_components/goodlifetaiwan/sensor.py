@@ -1,4 +1,4 @@
-"""Sensor platform: unpicked count, auth status, verification code, code expiry."""
+"""Sensor platform: unpicked count, auth status, pickup code, code expiry."""
 
 from __future__ import annotations
 
@@ -30,15 +30,15 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     bundle = hass.data[DOMAIN][entry.entry_id]
-    coordinator: GoodLifeCoordinator = bundle["coordinator"]
+    coordinators: dict[int, GoodLifeCoordinator] = bundle["coordinators"]
     auth: AuthManager = bundle["auth"]
 
     entities: list[SensorEntity] = []
-    for state in coordinator.communities.values():
-        entities.append(UnpickedSensor(coordinator, entry, state))
-        entities.append(AuthStatusSensor(coordinator, auth, entry, state))
-        entities.append(PickupCodeSensor(coordinator, entry, state))
-        entities.append(PickupCodeExpiresSensor(coordinator, entry, state))
+    for coord in coordinators.values():
+        entities.append(UnpickedSensor(coord, entry))
+        entities.append(AuthStatusSensor(coord, auth, entry))
+        entities.append(PickupCodeSensor(coord, entry))
+        entities.append(PickupCodeExpiresSensor(coord, entry))
 
     async_add_entities(entities)
 
@@ -50,16 +50,15 @@ class _BaseCommunitySensor(CoordinatorEntity[GoodLifeCoordinator], SensorEntity)
         self,
         coordinator: GoodLifeCoordinator,
         entry: ConfigEntry,
-        state: CommunityState,
     ) -> None:
         super().__init__(coordinator)
         self._entry = entry
-        self._cu_id = state.community_unit_id
-        self._attr_device_info = community_device_info(entry.entry_id, state)
+        self._cu_id = coordinator.community_unit_id
+        self._attr_device_info = community_device_info(entry.entry_id, coordinator.community)
 
     @property
-    def _state(self) -> CommunityState | None:
-        return self.coordinator.communities.get(self._cu_id)
+    def _state(self) -> CommunityState:
+        return self.coordinator.community
 
 
 class UnpickedSensor(_BaseCommunitySensor):
@@ -67,20 +66,17 @@ class UnpickedSensor(_BaseCommunitySensor):
     _attr_icon = "mdi:package-variant-closed"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, coordinator, entry, state: CommunityState) -> None:
-        super().__init__(coordinator, entry, state)
-        self._attr_unique_id = unique_id(entry.entry_id, state.community_unit_id, "unpicked")
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = unique_id(entry.entry_id, self._cu_id, "unpicked")
 
     @property
-    def native_value(self) -> int | None:
-        state = self._state
-        return len(state.packages) if state else None
+    def native_value(self) -> int:
+        return len(self._state.packages)
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def extra_state_attributes(self) -> dict[str, Any]:
         state = self._state
-        if state is None:
-            return None
         return {
             "items": [pkg.as_attr() for pkg in state.packages.values()],
             "last_updated": state.last_success,
@@ -100,14 +96,13 @@ class AuthStatusSensor(CoordinatorEntity[GoodLifeCoordinator], SensorEntity):
         coordinator: GoodLifeCoordinator,
         auth: AuthManager,
         entry: ConfigEntry,
-        state: CommunityState,
     ) -> None:
         super().__init__(coordinator)
         self._auth = auth
         self._entry = entry
-        self._cu_id = state.community_unit_id
-        self._attr_unique_id = unique_id(entry.entry_id, state.community_unit_id, "auth_status")
-        self._attr_device_info = community_device_info(entry.entry_id, state)
+        self._cu_id = coordinator.community_unit_id
+        self._attr_unique_id = unique_id(entry.entry_id, self._cu_id, "auth_status")
+        self._attr_device_info = community_device_info(entry.entry_id, coordinator.community)
         self._unsub_auth: Any = None
 
     async def async_added_to_hass(self) -> None:
@@ -137,9 +132,9 @@ class AuthStatusSensor(CoordinatorEntity[GoodLifeCoordinator], SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        state = self.coordinator.communities.get(self._cu_id)
+        state = self.coordinator.community
         return {
-            "last_success": state.last_success if state else None,
+            "last_success": state.last_success,
             "access_token_exp": self._auth.access_token_exp,
             "refresh_token_exp": self._auth.refresh_token_exp,
             "last_error": self._auth.last_error,
@@ -150,26 +145,24 @@ class PickupCodeSensor(_BaseCommunitySensor):
     _attr_translation_key = "pickup_code"
     _attr_icon = "mdi:numeric-5-box-outline"
 
-    def __init__(self, coordinator, entry, state: CommunityState) -> None:
-        super().__init__(coordinator, entry, state)
-        self._attr_unique_id = unique_id(entry.entry_id, state.community_unit_id, "pickup_code")
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = unique_id(entry.entry_id, self._cu_id, "pickup_code")
 
     @property
     def native_value(self) -> str | None:
-        state = self._state
-        if state is None or state.qr is None:
-            return None
-        return state.qr.code
+        qr = self._state.qr
+        return qr.code if qr is not None else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        state = self._state
-        if state is None or state.qr is None:
+        qr = self._state.qr
+        if qr is None:
             return None
         return {
-            "expires_at": state.qr.expires_at,
-            "generated_at": state.qr.generated_at,
-            "community_id": state.qr.community_id,
+            "expires_at": qr.expires_at,
+            "generated_at": qr.generated_at,
+            "community_id": qr.community_id,
         }
 
 
@@ -178,18 +171,16 @@ class PickupCodeExpiresSensor(_BaseCommunitySensor):
     _attr_icon = "mdi:clock-end"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
-    def __init__(self, coordinator, entry, state: CommunityState) -> None:
-        super().__init__(coordinator, entry, state)
-        self._attr_unique_id = unique_id(
-            entry.entry_id, state.community_unit_id, "pickup_code_expires"
-        )
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = unique_id(entry.entry_id, self._cu_id, "pickup_code_expires")
 
     @property
     def native_value(self) -> datetime | None:
-        state = self._state
-        if state is None or state.qr is None:
+        qr = self._state.qr
+        if qr is None:
             return None
         try:
-            return datetime.fromisoformat(state.qr.expires_at)
+            return datetime.fromisoformat(qr.expires_at)
         except ValueError:
             return None

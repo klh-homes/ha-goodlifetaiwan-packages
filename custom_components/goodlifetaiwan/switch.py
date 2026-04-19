@@ -1,13 +1,4 @@
-"""Switch platform: auto-regenerate pickup code on expiry.
-
-Off (default): when the 10-minute pickup code expires the sensor clears;
-the user presses the button or calls ``request_pickup_code`` for a fresh
-one. On: the integration silently requests a new code at each expiry.
-
-Caveat documented in strings.json's option description: the server may
-invalidate prior codes when new ones are issued, which could disrupt a
-pickup already in progress.
-"""
+"""Switch platform: per-community auto-regenerate-on-expiry toggle."""
 
 from __future__ import annotations
 
@@ -20,9 +11,9 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_AUTO_REGENERATE_PICKUP_CODE, CONF_PHONE_NUMBER, DOMAIN
+from .const import DOMAIN, auto_regenerate_key
 from .coordinator import GoodLifeCoordinator
-from .entity import account_device_info, unique_id
+from .entity import community_device_info, unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,8 +24,10 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     bundle = hass.data[DOMAIN][entry.entry_id]
-    coordinator: GoodLifeCoordinator = bundle["coordinator"]
-    async_add_entities([AutoRegeneratePickupCodeSwitch(coordinator, entry)])
+    coordinators: dict[int, GoodLifeCoordinator] = bundle["coordinators"]
+    async_add_entities(
+        [AutoRegeneratePickupCodeSwitch(coord, entry) for coord in coordinators.values()]
+    )
 
 
 class AutoRegeneratePickupCodeSwitch(CoordinatorEntity[GoodLifeCoordinator], SwitchEntity):
@@ -46,14 +39,17 @@ class AutoRegeneratePickupCodeSwitch(CoordinatorEntity[GoodLifeCoordinator], Swi
     def __init__(self, coordinator: GoodLifeCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_unique_id = unique_id(entry.entry_id, None, "auto_regenerate_pickup_code")
-        self._attr_device_info = account_device_info(
-            entry.entry_id, entry.data.get(CONF_PHONE_NUMBER, "")
-        )
+        self._cu_id = coordinator.community_unit_id
+        self._attr_unique_id = unique_id(entry.entry_id, self._cu_id, "auto_regenerate_pickup_code")
+        self._attr_device_info = community_device_info(entry.entry_id, coordinator.community)
 
     @property
     def is_on(self) -> bool:
-        return bool(self._entry.options.get(CONF_AUTO_REGENERATE_PICKUP_CODE, False))
+        # Default on — most users want a fresh QR always ready; we tested and
+        # confirmed the server does NOT invalidate prior codes when a new one
+        # is issued (see CHANGELOG v0.1 known-limitations note for the live
+        # probe), so the former caveat is moot.
+        return bool(self._entry.options.get(auto_regenerate_key(self._cu_id), True))
 
     async def async_turn_on(self, **_: object) -> None:
         await self._set(True)
@@ -66,7 +62,7 @@ class AutoRegeneratePickupCodeSwitch(CoordinatorEntity[GoodLifeCoordinator], Swi
             self._entry,
             options={
                 **self._entry.options,
-                CONF_AUTO_REGENERATE_PICKUP_CODE: value,
+                auto_regenerate_key(self._cu_id): value,
             },
         )
         # No coordinator reload needed — _handle_expiry reads the option live

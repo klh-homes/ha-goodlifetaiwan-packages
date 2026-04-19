@@ -54,9 +54,15 @@ def _make_entry(hass, community_ids: list[int] | None = None) -> MockConfigEntry
                 "shortAddress": "8號",
             }
         )
+    # Explicit auto_regen=False per community so expiry timers fired during
+    # teardown don't attempt a real HTTP regen after aioresponses closes.
+    from custom_components.goodlifetaiwan.const import auto_regenerate_key
+
+    options = {auto_regenerate_key(cu_id): False for cu_id in community_ids}
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="+886912345678",
+        options=options,
         data={
             CONF_PHONE_NUMBER: "+886912345678",
             CONF_COMMUNITY_UNIT_IDS: community_ids,

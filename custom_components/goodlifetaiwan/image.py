@@ -24,10 +24,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     bundle = hass.data[DOMAIN][entry.entry_id]
-    coordinator: GoodLifeCoordinator = bundle["coordinator"]
-    entities = [
-        QrImage(hass, coordinator, entry, state) for state in coordinator.communities.values()
-    ]
+    coordinators: dict[int, GoodLifeCoordinator] = bundle["coordinators"]
+    entities = [QrImage(hass, coord, entry) for coord in coordinators.values()]
     async_add_entities(entities)
 
 
@@ -42,41 +40,35 @@ class QrImage(CoordinatorEntity[GoodLifeCoordinator], ImageEntity):
         hass: HomeAssistant,
         coordinator: GoodLifeCoordinator,
         entry: ConfigEntry,
-        state: CommunityState,
     ) -> None:
         CoordinatorEntity.__init__(self, coordinator)
         ImageEntity.__init__(self, hass)
         self._entry = entry
-        self._cu_id = state.community_unit_id
-        self._attr_unique_id = unique_id(entry.entry_id, state.community_unit_id, "qr")
-        self._attr_device_info = community_device_info(entry.entry_id, state)
+        self._cu_id = coordinator.community_unit_id
+        self._attr_unique_id = unique_id(entry.entry_id, self._cu_id, "qr")
+        self._attr_device_info = community_device_info(entry.entry_id, coordinator.community)
         self._last_seen_generated_at: str | None = None
 
     @property
-    def _state(self) -> CommunityState | None:
-        return self.coordinator.communities.get(self._cu_id)
+    def _state(self) -> CommunityState:
+        return self.coordinator.community
 
     @callback
     def _handle_coordinator_update(self) -> None:
         # Update image_last_updated BEFORE async_write_ha_state so the state
         # (which ImageEntity derives from image_last_updated) publishes the
-        # fresh ISO timestamp instead of None. Previously this update lived
-        # in async_image(), which only runs when HA serves the PNG bytes —
-        # meaning the sensor state lagged behind the snapshot.
+        # fresh ISO timestamp instead of None.
         state = self._state
-        if state is not None and state.qr is not None:
-            if state.qr.generated_at != self._last_seen_generated_at:
-                self._last_seen_generated_at = state.qr.generated_at
-                self._attr_image_last_updated = datetime.now(UTC)
-        elif state is not None and state.qr is None:
-            # Snapshot was cleared (e.g., by the expiry timer) — reset so the
-            # next snapshot is treated as fresh.
+        if state.qr is not None and state.qr.generated_at != self._last_seen_generated_at:
+            self._last_seen_generated_at = state.qr.generated_at
+            self._attr_image_last_updated = datetime.now(UTC)
+        elif state.qr is None:
+            # Snapshot cleared (expiry timer) — reset so the next snapshot
+            # is treated as fresh.
             self._last_seen_generated_at = None
             self._attr_image_last_updated = None
         super()._handle_coordinator_update()
 
     async def async_image(self) -> bytes | None:
-        state = self._state
-        if state is None or state.qr is None:
-            return None
-        return state.qr.png_bytes
+        qr = self._state.qr
+        return qr.png_bytes if qr is not None else None

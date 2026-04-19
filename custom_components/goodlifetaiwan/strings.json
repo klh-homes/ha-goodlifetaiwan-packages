@@ -71,7 +71,7 @@
       }
     },
     "number": {
-      "scan_interval": {
+      "poll_interval": {
         "name": "Poll interval"
       }
     },

@@ -14,7 +14,6 @@ from custom_components.goodlifetaiwan.const import (
     CONF_COMMUNITY_UNIT_IDS,
     CONF_MEMBER_INFO,
     CONF_PHONE_NUMBER,
-    CONF_SCAN_INTERVAL,
     DOMAIN,
     STORAGE_KEY_FMT,
     STORAGE_VERSION,

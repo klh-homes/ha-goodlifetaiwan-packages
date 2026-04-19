@@ -52,17 +52,21 @@ async def _make_coordinator(hass, fresh_access_token, long_refresh_token) -> Goo
     auth = AuthManager(hass, "e1", "+886912345678", api)
     await auth.async_load()
 
+    from custom_components.goodlifetaiwan.const import auto_regenerate_key
+
     class _FakeEntry:
         entry_id = "e1"
-        options: dict = {}
+        # Explicit opt-out so expiry timers fired during teardown don't try to
+        # auto-regen against a closed aioresponses mock (v0.3 default is True).
+        options: dict = {auto_regenerate_key(110412): False}
 
     state = CommunityState(
         community_id=1777,
         community_unit_id=110412,
         community_name="測試社區",
-        slug="test_0412",
+        slug="",
     )
-    return GoodLifeCoordinator(hass, _FakeEntry(), api, auth, [state])
+    return GoodLifeCoordinator(hass, _FakeEntry(), api, auth, state)
 
 
 async def test_first_poll_does_not_fire_events(hass, fresh_access_token, long_refresh_token):
@@ -85,7 +89,7 @@ async def test_first_poll_does_not_fire_events(hass, fresh_access_token, long_re
     assert len(arrived) == 0
     assert len(picked) == 0
     # state should still be populated
-    assert len(coord.communities[110412].packages) == 2
+    assert len(coord.community.packages) == 2
 
 
 async def test_second_poll_new_package_fires_arrived(hass, fresh_access_token, long_refresh_token):
@@ -174,5 +178,5 @@ async def test_qr_snapshot_updates_state_and_notifies(hass, fresh_access_token, 
         community_id=1777,
         png_bytes=b"\x89PNG\r\n\x1a\n",
     )
-    await coord.async_set_qr_snapshot(110412, snap)
-    assert coord.communities[110412].qr is snap
+    await coord.async_set_qr_snapshot(snap)
+    assert coord.community.qr is snap
