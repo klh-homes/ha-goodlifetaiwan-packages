@@ -6,6 +6,12 @@ While the integration is pre-1.0, minor versions may include breaking changes to
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-19
+
+### Fixed
+
+- `request_pickup_code` (service, button press, and auto-regen timer) is now idempotent when the server returns the same `verificationCode` we already hold. Previously every call unconditionally replaced the snapshot, fired three state_changed events (`sensor.*_pickup_code`, `sensor.*_pickup_code_expires`, `image.*_qr`), bumped `image_last_updated`, and re-armed the expiry timer — even when nothing actually changed. v0.3.1 short-circuits: if the code matches, entities and timer are left alone and the existing snapshot is returned. The service response shape is unchanged.
+
 ## [0.3.0] - 2026-04-19
 
 ### Breaking
@@ -95,7 +101,8 @@ Initial release.
 - The module-level rate-limit for `send_sms` resets on HA restart. Acceptable — real-world call frequency is near zero.
 - Refresh tokens' lifecycle was initially documented (reverse-engineered) as "single-use rolling". Live-tested against the server in April 2026: that's not accurate. Calling `RefreshMemberToken` issues a new refresh token but does **not** invalidate the caller's original. Verified empirically — three back-to-back calls (reusing the same R0, then a mix of R0 and R1) all returned `COM00001`. So multiple concurrent consumers of the same account (mobile app, HA, dev HA) all coexist safely, each keeping its tokens alive independently up to their 90-day expiry. Tokens are still _rotated_ in the sense that a fresh one comes back on every refresh — the integration writes the latest one to storage — but old ones remain valid for their lifetime.
 
-[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.3.1
 [0.3.0]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.3.0
 [0.2.0]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.2.0
 [0.1.0]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.1.0
