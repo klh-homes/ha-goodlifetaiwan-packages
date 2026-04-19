@@ -4,8 +4,27 @@ from __future__ import annotations
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
+from .auth import mask_phone
 from .const import DOMAIN
 from .coordinator import CommunityState
+
+
+def account_device_info(entry_id: str, phone_number: str) -> DeviceInfo:
+    """Device hosting entry-level configuration entities (scan interval, auto-regen).
+
+    v0.2.0 note: v0.2's initial commit removed this device because its only
+    occupant (sensor.*_service) was redundant with per-community auth_status.
+    Re-added once per-entry CONFIG-category entities (number + switch) needed
+    a natural home — attaching them to an arbitrary community device would
+    mislead users into thinking they were per-community settings.
+    """
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry_id}__account")},
+        name=f"GoodLifeTaiwan account {mask_phone(phone_number)}",
+        manufacturer="Taiwan Secom",
+        model="account",
+        configuration_url="https://www.glf.tw",
+    )
 
 
 def community_device_info(entry_id: str, state: CommunityState) -> DeviceInfo:

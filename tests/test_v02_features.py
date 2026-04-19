@@ -6,7 +6,10 @@ Covers:
   (previously stuck at "unknown" until a later event).
 - Pickup-code expiry — auto_regenerate_pickup_code=False: clears the snapshot.
 - Pickup-code expiry — auto_regenerate_pickup_code=True: triggers a fresh code.
-- No account device / no service_health sensor (v0.2.0 removal).
+- No service_health sensor (v0.2.0 removal — the service_health aggregate is gone,
+  but the account device it lived on is back to host CONFIG-category entities).
+- scan_interval + auto_regenerate are CONFIG-category entities (number + switch)
+  on the account device; Options flow was removed in v0.2.0.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from custom_components.goodlifetaiwan.const import (
     CONF_COMMUNITY_UNIT_IDS,
     CONF_MEMBER_INFO,
     CONF_PHONE_NUMBER,
+    CONF_SCAN_INTERVAL,
     DOMAIN,
     STORAGE_KEY_FMT,
     STORAGE_VERSION,
@@ -251,3 +255,85 @@ async def test_service_health_sensor_not_created(hass, fresh_access_token, long_
         assert "service" not in eid or "goodlifetaiwan" not in eid, (
             f"legacy service_health sensor still present: {eid}"
         )
+
+
+# --- number / switch entities (replacing the removed Options flow) ------
+
+
+async def test_scan_interval_number_entity_mutates_coordinator(
+    hass, fresh_access_token, long_refresh_token
+):
+    from datetime import timedelta
+
+    entry = _entry(hass)
+    await _setup(hass, entry, fresh_access_token, long_refresh_token)
+
+    number_id = "number.goodlifetaiwan_account_5678_poll_interval"
+    state = hass.states.get(number_id)
+    assert state is not None, (
+        f"scan_interval number entity missing; known entities: "
+        f"{[e for e in hass.states.async_entity_ids() if 'goodlifetaiwan' in e]}"
+    )
+    # Default is DEFAULT_SCAN_INTERVAL_SEC (600)
+    assert float(state.state) == 600.0
+
+    with aioresponses() as m:
+        # Setting the value triggers async_request_refresh on the coordinator.
+        m.get(
+            f"{BASE_URL_API}/resident/api/v76/Package/UnpickedPackages",
+            payload={"code": "COM00001", "data": {"items": []}},
+            repeat=True,
+        )
+        await hass.services.async_call(
+            "number",
+            "set_value",
+            {"entity_id": number_id, "value": 300},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+
+    assert entry.options[CONF_SCAN_INTERVAL] == 300
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    assert coordinator.update_interval == timedelta(seconds=300)
+
+
+async def test_scan_interval_rejects_out_of_range(hass, fresh_access_token, long_refresh_token):
+    entry = _entry(hass)
+    await _setup(hass, entry, fresh_access_token, long_refresh_token)
+
+    number_id = "number.goodlifetaiwan_account_5678_poll_interval"
+    # 30 is below MIN_SCAN_INTERVAL_SEC=60. NumberEntity schema clamps / rejects.
+    # HA raises ServiceValidationError for out-of-range values on number.set_value;
+    # pin to that rather than bare Exception so we catch regressions on upgrade.
+    from homeassistant.exceptions import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            "number",
+            "set_value",
+            {"entity_id": number_id, "value": 30},
+            blocking=True,
+        )
+
+
+async def test_auto_regenerate_switch_toggles_option(hass, fresh_access_token, long_refresh_token):
+    entry = _entry(hass)
+    await _setup(hass, entry, fresh_access_token, long_refresh_token)
+
+    switch_id = "switch.goodlifetaiwan_account_5678_auto_regenerate_pickup_code"
+    state = hass.states.get(switch_id)
+    assert state is not None
+    # Default off
+    assert state.state == "off"
+
+    await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert entry.options[CONF_AUTO_REGENERATE_PICKUP_CODE] is True
+    assert hass.states.get(switch_id).state == "on"
+
+    await hass.services.async_call("switch", "turn_off", {"entity_id": switch_id}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert entry.options[CONF_AUTO_REGENERATE_PICKUP_CODE] is False
+    assert hass.states.get(switch_id).state == "off"

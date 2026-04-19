@@ -81,7 +81,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_register_services(hass)
 
-    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+    # No options-update listener: settings are exposed as CONFIG-category
+    # entities (number.*_scan_interval, switch.*_auto_regenerate_pickup_code)
+    # that live-mutate the coordinator directly, so there's nothing to
+    # reload when options change.
 
     # If auth_needed on setup, ask HA to open the reauth flow.
     if auth.state == "auth_needed":
@@ -105,10 +108,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not remaining:
             async_unregister_services(hass)
     return unload_ok
-
-
-async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
 
 
 def _build_community_states(entry: ConfigEntry) -> list[CommunityState]:

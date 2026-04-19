@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "goodlifetaiwan"
-PLATFORMS: tuple[str, ...] = ("sensor", "image", "button")
+PLATFORMS: tuple[str, ...] = ("sensor", "image", "button", "number", "switch")
 
 # API hosts
 BASE_URL_API = "https://life-spi.glf.tw"

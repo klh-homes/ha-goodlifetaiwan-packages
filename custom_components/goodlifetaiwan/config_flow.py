@@ -12,22 +12,16 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
-    OptionsFlow,
 )
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.storage import Store
 
 from .api import ApiResponseError, GoodLifeApi, NetworkError, TokenBundle
 from .const import (
-    CONF_AUTO_REGENERATE_PICKUP_CODE,
     CONF_COMMUNITY_UNIT_IDS,
     CONF_MEMBER_INFO,
     CONF_PHONE_NUMBER,
-    CONF_SCAN_INTERVAL,
-    DEFAULT_SCAN_INTERVAL_SEC,
     DOMAIN,
-    MAX_SCAN_INTERVAL_SEC,
-    MIN_SCAN_INTERVAL_SEC,
     STORAGE_KEY_FMT,
     STORAGE_VERSION,
 )
@@ -236,32 +230,12 @@ class GoodLifeConfigFlow(ConfigFlow, domain=DOMAIN):
         title = f"中保好生活 {_mask(self._phone)}"
         return self.async_create_entry(title=title, data=data)
 
-    @staticmethod
-    def async_get_options_flow(
-        config_entry: ConfigEntry,
-    ) -> OptionsFlow:  # type: ignore[override]
-        return GoodLifeOptionsFlow(config_entry)
 
-
-class GoodLifeOptionsFlow(OptionsFlow):
-    def __init__(self, entry: ConfigEntry) -> None:
-        self.entry = entry
-
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-        current_interval = self.entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_SEC)
-        current_auto = self.entry.options.get(CONF_AUTO_REGENERATE_PICKUP_CODE, False)
-        schema = vol.Schema(
-            {
-                vol.Optional(CONF_SCAN_INTERVAL, default=current_interval): vol.All(
-                    vol.Coerce(int),
-                    vol.Range(min=MIN_SCAN_INTERVAL_SEC, max=MAX_SCAN_INTERVAL_SEC),
-                ),
-                vol.Optional(CONF_AUTO_REGENERATE_PICKUP_CODE, default=current_auto): bool,
-            }
-        )
-        return self.async_show_form(step_id="init", data_schema=schema)
+# v0.2.0 removed the Options flow. Scan interval and auto-regenerate are
+# now exposed as CONFIG-category entities:
+#   - number.*_scan_interval
+#   - switch.*_auto_regenerate_pickup_code
+# Both live on the per-entry account device.
 
 
 # --- helpers ---------------------------------------------------------------
