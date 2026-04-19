@@ -1,0 +1,49 @@
+request_pickup_code:
+  name: Request pickup code
+  description: Generate a fresh 5-digit verification code + QR image for package pickup.
+  fields:
+    entry_id:
+      name: Entry
+      description: GoodLifeTaiwan account (required if multiple configured)
+      required: false
+      selector:
+        config_entry:
+          integration: goodlifetaiwan
+    community_id:
+      name: Community
+      description: Community ID (required if the account has multiple communities)
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+
+send_sms:
+  name: Send SMS verification
+  description: Request an SMS verification code to your registered phone. Use this when re-login is needed.
+  fields:
+    entry_id:
+      name: Entry
+      required: false
+      selector:
+        config_entry:
+          integration: goodlifetaiwan
+
+submit_code:
+  name: Submit SMS verification code
+  description: Complete SMS login by submitting the 6-digit code received.
+  fields:
+    entry_id:
+      name: Entry
+      required: false
+      selector:
+        config_entry:
+          integration: goodlifetaiwan
+    code:
+      name: Verification code
+      description: 6-digit SMS code
+      required: true
+      selector:
+        text:
+          multiline: false
+          type: text

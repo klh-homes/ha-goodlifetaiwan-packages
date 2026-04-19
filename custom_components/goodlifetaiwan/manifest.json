@@ -1,0 +1,13 @@
+{
+  "domain": "goodlifetaiwan",
+  "name": "GoodLifeTaiwan 中保好生活",
+  "codeowners": ["@klh-homes"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/klh-homes/ha-goodlifetaiwan-packages",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/klh-homes/ha-goodlifetaiwan-packages/issues",
+  "requirements": ["qrcode[pil]>=7.4"],
+  "version": "0.3.3"
+}

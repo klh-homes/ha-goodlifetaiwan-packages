@@ -1,0 +1,24 @@
+# Conservative ruff config: catches what pyflakes would plus import ordering.
+# Keep the rule set narrow until there's appetite for a wider sweep.
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = [
+    "F",   # pyflakes: unused imports, undefined names, redefinitions
+    "I",   # isort: import ordering
+    "E",   # pycodestyle errors (syntax-level)
+    "W",   # pycodestyle warnings
+    "B",   # flake8-bugbear: common correctness traps
+    "UP",  # pyupgrade: py3.12+ idioms
+]
+ignore = [
+    "E501",  # line length is handled by the formatter if added later
+    "B008",  # function call in default argument — common + benign in HA
+]
+
+[lint.per-file-ignores]
+# Tests touch private attributes to drive state transitions (e.g., auth._transition).
+"tests/**/*.py" = ["F401"]
+# Scripts are intentionally sys.path-hacking; allow prints.
+"scripts/**/*.py" = ["E402"]
