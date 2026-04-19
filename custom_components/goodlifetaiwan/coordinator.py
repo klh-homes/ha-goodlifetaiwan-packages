@@ -221,6 +221,13 @@ class GoodLifeCoordinator(DataUpdateCoordinator[CommunityState]):
         - ``button.*_request_pickup_code`` entity press
         - auto-regen timer (when the toggle is on)
 
+        If the server returns the same ``verificationCode`` we already have
+        in state, this is a no-op — we skip PNG rendering, don't touch
+        ``sensor.*_pickup_code`` / ``sensor.*_pickup_code_expires`` /
+        ``image.*_qr``, and don't re-arm the expiry timer. The existing
+        snapshot is returned unchanged so the service response shape stays
+        stable for callers.
+
         Raises :class:`AuthRequired`, :class:`ApiResponseError`, or
         :class:`NetworkError` on failure; callers translate to their own
         user-facing error types.
@@ -234,6 +241,16 @@ class GoodLifeCoordinator(DataUpdateCoordinator[CommunityState]):
             code = str(data.get("verificationCode") or "")
             if not code:
                 raise ApiResponseError("missing verificationCode", status=200, body=data)
+
+            # Server returned the same code we already hold — nothing to do.
+            if state.qr is not None and state.qr.code == code:
+                _LOGGER.debug(
+                    "request_pickup_code returned unchanged code for community=%s; "
+                    "skipping entity update",
+                    state.community_id,
+                )
+                return state.qr
+
             png_bytes = await self.hass.async_add_executor_job(_render_qr_png, code)
             snap = QrSnapshot(
                 code=code,
