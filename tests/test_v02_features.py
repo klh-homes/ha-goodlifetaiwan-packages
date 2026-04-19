@@ -37,8 +37,8 @@ from custom_components.goodlifetaiwan.const import (
     scan_interval_key,
 )
 
-# Convenience — this test file's fixture uses community_unit_id=110412.
-_CU = 110412
+# Convenience — this test file's fixture uses community_unit_id=1001.
+_CU = 1001
 _SCAN_KEY = scan_interval_key(_CU)
 _AUTO_KEY = auto_regenerate_key(_CU)
 
@@ -56,13 +56,13 @@ def _entry(hass, options: dict | None = None) -> MockConfigEntry:
         options=merged,
         data={
             CONF_PHONE_NUMBER: "+886912345678",
-            CONF_COMMUNITY_UNIT_IDS: [110412],
+            CONF_COMMUNITY_UNIT_IDS: [1001],
             CONF_MEMBER_INFO: {
                 "communityUnits": [
                     {
-                        "communityId": 1777,
-                        "communityUnitId": 110412,
-                        "communityName": "社區A",
+                        "communityId": 101,
+                        "communityUnitId": 1001,
+                        "communityName": "Test A",
                     }
                 ],
                 "memberId": "m1",
@@ -91,7 +91,7 @@ async def _setup(hass, entry, fresh_access, refresh) -> None:
         await hass.async_block_till_done()
 
 
-def _qr_payload(code: str, expires_at: str, community_id: int = 1777) -> dict:
+def _qr_payload(code: str, expires_at: str, community_id: int = 101) -> dict:
     return {
         "code": "COM00001",
         "data": {
@@ -109,7 +109,7 @@ async def test_button_press_generates_fresh_qr(hass, fresh_access_token, long_re
     entry = _entry(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
-    button_id = "button.goodlifetaiwan_she_qu_a_request_pickup_code"
+    button_id = "button.goodlifetaiwan_test_a_request_pickup_code"
     # confirm the entity was created
     assert hass.states.get(button_id) is not None
 
@@ -122,7 +122,7 @@ async def test_button_press_generates_fresh_qr(hass, fresh_access_token, long_re
         await hass.services.async_call("button", "press", {"entity_id": button_id}, blocking=True)
         await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.goodlifetaiwan_she_qu_a_pickup_code")
+    state = hass.states.get("sensor.goodlifetaiwan_test_a_pickup_code")
     assert state is not None
     assert state.state == "77777"
 
@@ -136,7 +136,7 @@ async def test_image_state_updates_on_snapshot(hass, fresh_access_token, long_re
     entry = _entry(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
-    image_id = "image.goodlifetaiwan_she_qu_a_qr_image"
+    image_id = "image.goodlifetaiwan_test_a_qr_image"
     # Before any QR, the state should be unknown.
     before = hass.states.get(image_id)
     assert before is not None
@@ -192,7 +192,7 @@ async def test_expiry_clears_snapshot_when_auto_regen_off(
         )
         await hass.async_block_till_done()
 
-        code_sensor_id = "sensor.goodlifetaiwan_she_qu_a_pickup_code"
+        code_sensor_id = "sensor.goodlifetaiwan_test_a_pickup_code"
         assert hass.states.get(code_sensor_id).state == "99999"
 
         # Advance HA's scheduler past expiry — the timer fires, and with
@@ -243,7 +243,7 @@ async def test_expiry_regenerates_when_auto_regen_on(hass, fresh_access_token, l
         )
         await hass.async_block_till_done()
 
-        code_sensor_id = "sensor.goodlifetaiwan_she_qu_a_pickup_code"
+        code_sensor_id = "sensor.goodlifetaiwan_test_a_pickup_code"
         assert hass.states.get(code_sensor_id).state == "11111"
 
         # Now flip auto_regen on (code already present → no initial regen;
@@ -257,6 +257,69 @@ async def test_expiry_regenerates_when_auto_regen_on(hass, fresh_access_token, l
         state = hass.states.get(code_sensor_id)
         assert state is not None
         assert state.state == "22222", f"expected auto-regenerated code, got {state.state!r}"
+
+
+async def test_expiry_during_refresh_does_not_clear(hass, fresh_access_token, long_refresh_token):
+    """v0.3.4 regression. When auth is mid-refresh (both the 10-min access
+    token refresh and the 10-min pickup code expiry naturally align), the
+    expiry handler used to gate on ``auth.state == ok`` and clear all
+    pickup entities. Fixed to only skip regen on ``auth_needed``; ``refreshing``
+    is fine because ``async_ensure_access_token`` serialises on the auth
+    refresh lock internally.
+    """
+    from custom_components.goodlifetaiwan.const import AUTH_STATE_REFRESHING
+
+    entry = _entry(hass, options={_AUTO_KEY: False})
+    await _setup(hass, entry, fresh_access_token, long_refresh_token)
+
+    first_expiry = dt_util.utcnow() + timedelta(seconds=30)
+    second_expiry = first_expiry + timedelta(minutes=10)
+
+    with aioresponses() as m:
+        m.post(
+            f"{BASE_URL_API}/resident/api/Package/CreateCheckOutVerificationCode",
+            payload=_qr_payload("11111", first_expiry.isoformat()),
+        )
+        m.get(
+            f"{BASE_URL_API}/resident/api/v76/Package/UnpickedPackages",
+            payload={"code": "COM00001", "data": {"items": []}},
+            repeat=True,
+        )
+        await hass.services.async_call(
+            DOMAIN, "request_pickup_code", {}, blocking=True, return_response=True
+        )
+        await hass.async_block_till_done()
+
+    code_sensor_id = "sensor.goodlifetaiwan_test_a_pickup_code"
+    assert hass.states.get(code_sensor_id).state == "11111"
+
+    # Arm auto-regen AND force auth into `refreshing` state before firing
+    # expiry, simulating the alignment. Pre-fix, the expiry handler's
+    # `auth.state == ok` gate would fail here and clear the snapshot.
+    hass.config_entries.async_update_entry(entry, options={**entry.options, _AUTO_KEY: True})
+    auth = hass.data[DOMAIN][entry.entry_id]["auth"]
+    auth._state = AUTH_STATE_REFRESHING
+
+    with aioresponses() as m:
+        m.post(
+            f"{BASE_URL_API}/resident/api/Package/CreateCheckOutVerificationCode",
+            payload=_qr_payload("22222", second_expiry.isoformat()),
+        )
+        m.get(
+            f"{BASE_URL_API}/resident/api/v76/Package/UnpickedPackages",
+            payload={"code": "COM00001", "data": {"items": []}},
+            repeat=True,
+        )
+        async_fire_time_changed(hass, first_expiry + timedelta(seconds=1))
+        await hass.async_block_till_done()
+
+    state = hass.states.get(code_sensor_id)
+    assert state is not None
+    # Post-fix: regen ran despite auth.state == refreshing.
+    assert state.state == "22222", (
+        f"expected regen to fire during refreshing state, got {state.state!r} "
+        "(pre-fix the gate would have cleared the snapshot)"
+    )
 
 
 # --- v0.2.0 removal: service_health sensor + account device gone ------
@@ -284,7 +347,7 @@ async def test_scan_interval_number_entity_mutates_coordinator(
     entry = _entry(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
-    number_id = "number.goodlifetaiwan_she_qu_a_poll_interval"
+    number_id = "number.goodlifetaiwan_test_a_poll_interval"
     state = hass.states.get(number_id)
     assert state is not None, (
         f"scan_interval number entity missing; known entities: "
@@ -317,7 +380,7 @@ async def test_scan_interval_rejects_out_of_range(hass, fresh_access_token, long
     entry = _entry(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
-    number_id = "number.goodlifetaiwan_she_qu_a_poll_interval"
+    number_id = "number.goodlifetaiwan_test_a_poll_interval"
     # 30 is below MIN_SCAN_INTERVAL_SEC=60. NumberEntity schema clamps / rejects.
     # HA raises ServiceValidationError for out-of-range values on number.set_value;
     # pin to that rather than bare Exception so we catch regressions on upgrade.
@@ -338,7 +401,7 @@ async def test_auto_regenerate_switch_toggles_option(hass, fresh_access_token, l
     entry = _entry(hass, options={_AUTO_KEY: False})
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
-    switch_id = "switch.goodlifetaiwan_she_qu_a_auto_regenerate_pickup_code"
+    switch_id = "switch.goodlifetaiwan_test_a_auto_regenerate_pickup_code"
     state = hass.states.get(switch_id)
     assert state is not None
     assert state.state == "off"
@@ -355,7 +418,7 @@ async def test_auto_regenerate_switch_toggles_option(hass, fresh_access_token, l
             payload={
                 "code": "COM00001",
                 "data": {
-                    "communityId": 1777,
+                    "communityId": 101,
                     "verificationCode": "42424",
                     "expiredTime": expiry,
                 },

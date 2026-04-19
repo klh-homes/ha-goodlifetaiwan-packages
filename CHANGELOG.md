@@ -6,6 +6,17 @@ While the integration is pre-1.0, minor versions may include breaking changes to
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-04-20
+
+### Fixed
+
+- `image.*_qr_image` stayed `unknown` on a fresh install with auto-regenerate on. The v0.3.2 initial-regen hook fires during `async_setup_entry` _before_ `async_forward_entry_setups`, so the QR snapshot lands in `coordinator.data` before the image entity exists as a listener — `_handle_coordinator_update` never runs for that first snapshot and `_attr_image_last_updated` stays `None`, which `ImageEntity` exposes as state `unknown`. Sensors worked because they read `coordinator.data` live on every state query; the image entity doesn't. Fix: `QrImage.async_added_to_hass` now syncs `_attr_image_last_updated` from the current `coordinator.community.qr` at join time. `sensor.*_pickup_code` and `sensor.*_pickup_code_expires` were unaffected.
+- Pickup-code entities went to `unknown` whenever the 10-minute pickup-code expiry happened to tick in the same second as the proactive access-token refresh (both are ~10-minute cycles and naturally align). `_handle_expiry` gated auto-regen on `auth.state == ok`, so when the expiry fired during the ~1s window where `auth.state == refreshing`, the gate failed and the fallback cleared the snapshot. The fix loosens the gate to `auth.state != auth_needed` — `auth_needed` is the only state where we know the call will fail (no valid refresh token; user must re-auth). In `refreshing` the regen call blocks on `AuthManager._refresh_lock` until the in-flight refresh completes, then uses the fresh token. Same gate in `async_maybe_generate_initial` loosened similarly.
+
+### Internal
+
+- Test fixtures and docs examples: replaced stale identifiers lifted from the original reverse-engineering captures (real community IDs, real phone numbers, real community names) with clearly-synthetic placeholders. No runtime or public-API impact; same change could land in any patch release.
+
 ## [0.3.3] - 2026-04-19
 
 First public release. The integration had gone through five pre-releases (v0.1 → v0.3.2) during private iteration; the working tree that landed in v0.3.3 is the consolidation of those, re-released as a clean single commit.
@@ -29,5 +40,6 @@ First public release. The integration had gone through five pre-releases (v0.1 �
 - Only `UnpickedPackages` is polled. Picked / deposited / returned package history is out of scope.
 - The module-level `send_sms` rate limit resets on HA restart. Acceptable — real-world call frequency is once every few months at most.
 
-[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.3.4
 [0.3.3]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.3.3

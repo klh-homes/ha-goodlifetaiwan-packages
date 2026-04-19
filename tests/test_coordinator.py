@@ -7,8 +7,8 @@ from custom_components.goodlifetaiwan.coordinator import CommunityState, _summar
 
 def test_summarize_extracts_fields():
     state = CommunityState(
-        community_id=1777,
-        community_unit_id=110412,
+        community_id=101,
+        community_unit_id=1001,
         community_name="範例社區",
         slug="",
     )

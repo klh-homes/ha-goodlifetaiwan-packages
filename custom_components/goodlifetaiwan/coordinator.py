@@ -28,7 +28,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import ApiResponseError, GoodLifeApi, NetworkError
 from .auth import AuthManager, AuthRequired
 from .const import (
-    AUTH_STATE_OK,
+    AUTH_STATE_AUTH_NEEDED,
     DEFAULT_SCAN_INTERVAL_SEC,
     DOMAIN,
     EVENT_PACKAGE_ARRIVED,
@@ -291,7 +291,14 @@ class GoodLifeCoordinator(DataUpdateCoordinator[CommunityState]):
         state.qr_expire_unsub = None
 
         auto = self.entry.options.get(auto_regenerate_key(state.community_unit_id), True)
-        if auto and self.auth.state == AUTH_STATE_OK:
+        # Attempt regen in any state except auth_needed. In particular,
+        # `refreshing` is fine: async_ensure_access_token serialises on the
+        # auth refresh lock, so this call will block until the in-flight
+        # refresh completes and then use the fresh token. Earlier versions
+        # gated on `state == ok`, which cleared all pickup entities whenever
+        # the 10-min pickup-code expiry happened to tick in the same second
+        # as the 10-min access-token auto-refresh.
+        if auto and self.auth.state != AUTH_STATE_AUTH_NEEDED:
             try:
                 await self.async_generate_pickup_code()
                 return
@@ -303,7 +310,7 @@ class GoodLifeCoordinator(DataUpdateCoordinator[CommunityState]):
                 )
                 # fall through — clear state below
 
-        # Auto-regen off, auth not OK, or regen failed → clear snapshot.
+        # Auto-regen off, user must re-auth, or regen attempt failed → clear.
         state.qr = None
         self.async_set_updated_data(state)
 
@@ -324,7 +331,9 @@ class GoodLifeCoordinator(DataUpdateCoordinator[CommunityState]):
         """
         if self.community.qr is not None:
             return
-        if self.auth.state != AUTH_STATE_OK:
+        # Skip only when we KNOW the call will fail. `refreshing` is fine
+        # here — async_ensure_access_token waits on the refresh lock.
+        if self.auth.state == AUTH_STATE_AUTH_NEEDED:
             return
         auto = self.entry.options.get(auto_regenerate_key(self.community_unit_id), True)
         if not auto:

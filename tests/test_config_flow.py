@@ -36,8 +36,8 @@ def test_normalize_phone_rejects_nonsense():
 
 def test_community_label_with_short_address():
     unit = {
-        "communityId": 1777,
-        "communityUnitId": 110412,
+        "communityId": 101,
+        "communityUnitId": 1001,
         "communityName": "範例社區",
         "shortAddress": "1號1樓",
     }
@@ -45,8 +45,8 @@ def test_community_label_with_short_address():
 
 
 def test_community_label_without_short_address():
-    unit = {"communityId": 1, "communityName": "社區A"}
-    assert _community_label(unit) == "社區A"
+    unit = {"communityId": 1, "communityName": "Test A"}
+    assert _community_label(unit) == "Test A"
 
 
 def test_community_label_fallback_when_name_missing():

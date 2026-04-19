@@ -55,9 +55,9 @@ async def test_flow_happy_path_single_community(hass):
                     "name": "T",
                     "communityUnits": [
                         {
-                            "communityId": 1777,
-                            "communityUnitId": 110412,
-                            "communityName": "社區A",
+                            "communityId": 101,
+                            "communityUnitId": 1001,
+                            "communityName": "Test A",
                             "shortAddress": "6號",
                         }
                     ],
@@ -87,7 +87,7 @@ async def test_flow_happy_path_single_community(hass):
         )
         assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
         assert result["data"][CONF_PHONE_NUMBER] == "+886912345678"
-        assert result["data"][CONF_COMMUNITY_UNIT_IDS] == [110412]
+        assert result["data"][CONF_COMMUNITY_UNIT_IDS] == [1001]
         assert "_bootstrap_access_token" in result["data"]
 
     await hass.async_block_till_done()
@@ -137,15 +137,15 @@ async def test_flow_multi_community_prompts_selection(hass):
                     "name": "T",
                     "communityUnits": [
                         {
-                            "communityId": 1777,
-                            "communityUnitId": 110412,
-                            "communityName": "社區A",
+                            "communityId": 101,
+                            "communityUnitId": 1001,
+                            "communityName": "Test A",
                             "shortAddress": "6號",
                         },
                         {
-                            "communityId": 1778,
-                            "communityUnitId": 110413,
-                            "communityName": "社區B",
+                            "communityId": 103,
+                            "communityUnitId": 1003,
+                            "communityName": "Test B",
                             "shortAddress": "8號",
                         },
                     ],
@@ -171,10 +171,10 @@ async def test_flow_multi_community_prompts_selection(hass):
         assert result["step_id"] == "community"
 
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {"communities": [110413]}
+            result["flow_id"], {"communities": [1003]}
         )
         assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-        assert result["data"][CONF_COMMUNITY_UNIT_IDS] == [110413]
+        assert result["data"][CONF_COMMUNITY_UNIT_IDS] == [1003]
 
 
 async def test_flow_wrong_code_stays_on_sms_verify(hass):

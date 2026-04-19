@@ -53,6 +53,21 @@ class QrImage(CoordinatorEntity[GoodLifeCoordinator], ImageEntity):
     def _state(self) -> CommunityState:
         return self.coordinator.community
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # If the coordinator already has a QR snapshot the moment we're
+        # added (v0.3.2's initial-regen hook fires during async_setup_entry
+        # BEFORE platforms are forwarded, so the snapshot lands before the
+        # image entity exists as a listener), pick it up now.
+        # CoordinatorEntity.async_added_to_hass only installs the listener;
+        # it doesn't replay pre-existing state in coordinator.data — without
+        # this sync, _attr_image_last_updated stays None and image.state
+        # reads back as "unknown" until the next coordinator push.
+        state = self._state
+        if state.qr is not None:
+            self._last_seen_generated_at = state.qr.generated_at
+            self._attr_image_last_updated = datetime.now(UTC)
+
     @callback
     def _handle_coordinator_update(self) -> None:
         # Update image_last_updated BEFORE async_write_ha_state so the state

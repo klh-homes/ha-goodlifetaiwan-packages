@@ -19,7 +19,7 @@ Generate a fresh 5-digit pickup verification code plus a QR PNG.
 code: "52229"
 image_b64: "iVBORw0KGgo..."
 expires_at: "2026-04-19T14:12:47+08:00"
-community_id: 1777
+community_id: 101
 generated_at: "2026-04-19T14:02:47+08:00"
 ```
 

@@ -36,21 +36,21 @@ pytestmark = pytest.mark.asyncio
 
 
 def _make_entry(hass, community_ids: list[int] | None = None) -> MockConfigEntry:
-    community_ids = community_ids or [110412]
+    community_ids = community_ids or [1001]
     units = [
         {
-            "communityId": 1777,
-            "communityUnitId": 110412,
-            "communityName": "社區A",
+            "communityId": 101,
+            "communityUnitId": 1001,
+            "communityName": "Test A",
             "shortAddress": "1號1樓",
         }
     ]
-    if 110413 in community_ids:
+    if 1003 in community_ids:
         units.append(
             {
-                "communityId": 1778,
-                "communityUnitId": 110413,
-                "communityName": "社區B",
+                "communityId": 103,
+                "communityUnitId": 1003,
+                "communityName": "Test B",
                 "shortAddress": "8號",
             }
         )
@@ -106,7 +106,7 @@ async def test_request_pickup_code_happy_path(hass, fresh_access_token, long_ref
             payload={
                 "code": "COM00001",
                 "data": {
-                    "communityId": 1777,
+                    "communityId": 101,
                     "verificationCode": "52229",
                     "expiredTime": "2026-04-19T14:12:47+08:00",
                 },
@@ -121,7 +121,7 @@ async def test_request_pickup_code_happy_path(hass, fresh_access_token, long_ref
         )
 
     assert result["code"] == "52229"
-    assert result["community_id"] == 1777
+    assert result["community_id"] == 101
     png = base64.b64decode(result["image_b64"])
     assert png.startswith(b"\x89PNG\r\n\x1a\n")
 
@@ -145,7 +145,7 @@ async def test_request_pickup_code_when_auth_needed_raises(
 async def test_request_pickup_code_ambiguous_community_raises(
     hass, fresh_access_token, long_refresh_token
 ):
-    entry = _make_entry(hass, community_ids=[110412, 110413])
+    entry = _make_entry(hass, community_ids=[1001, 1003])
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     with pytest.raises(ServiceValidationError):
@@ -157,7 +157,7 @@ async def test_request_pickup_code_ambiguous_community_raises(
 async def test_request_pickup_code_resolves_explicit_community(
     hass, fresh_access_token, long_refresh_token
 ):
-    entry = _make_entry(hass, community_ids=[110412, 110413])
+    entry = _make_entry(hass, community_ids=[1001, 1003])
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     with aioresponses() as m:
@@ -166,7 +166,7 @@ async def test_request_pickup_code_resolves_explicit_community(
             payload={
                 "code": "COM00001",
                 "data": {
-                    "communityId": 1778,
+                    "communityId": 103,
                     "verificationCode": "11111",
                     "expiredTime": "2026-04-19T14:12:47+08:00",
                 },
@@ -175,11 +175,11 @@ async def test_request_pickup_code_resolves_explicit_community(
         result = await hass.services.async_call(
             DOMAIN,
             SERVICE_REQUEST_PICKUP_CODE,
-            {"community_id": 1778},
+            {"community_id": 103},
             blocking=True,
             return_response=True,
         )
-    assert result["community_id"] == 1778
+    assert result["community_id"] == 103
     assert result["code"] == "11111"
 
 

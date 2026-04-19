@@ -9,11 +9,11 @@
     "totalRows": 2,
     "items": [
       {
-        "packageId": 3561900,
+        "packageId": 9001,
         "packageNo": "0095",
         "packageStatusId": 1,
         "toContactInfo": {
-          "communityUnitId": 110412,
+          "communityUnitId": 1001,
           "memberId": "0912345678",
           "name": "測試收件人一",
           "phone": "0912345678",
@@ -22,8 +22,8 @@
           "isResident": true
         },
         "packagePlacement": {
-          "communityId": 1777,
-          "packagePlacementId": 1466,
+          "communityId": 101,
+          "packagePlacementId": 66,
           "packagePlacementName": "櫃台右側"
         },
         "checkedInDate": "2026-04-16T16:21:56.66",
@@ -38,11 +38,11 @@
         "isPackageOwner": false
       },
       {
-        "packageId": 3561901,
+        "packageId": 9002,
         "packageNo": "0096",
         "packageStatusId": 1,
         "toContactInfo": {
-          "communityUnitId": 110412,
+          "communityUnitId": 1001,
           "name": "測試收件人二",
           "phone": "0933333333",
           "residentId": 100002,
@@ -50,7 +50,7 @@
           "isResident": true
         },
         "packagePlacement": {
-          "communityId": 1777,
+          "communityId": 101,
           "packagePlacementName": "櫃台左側"
         },
         "checkedInDate": "2026-04-17T10:00:00",

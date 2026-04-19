@@ -8,9 +8,9 @@ A package appeared in the unpicked list that wasn't present in the previous poll
 
 ```yaml
 entry_id: "<ha_config_entry_id>"
-community_id: 1777
+community_id: 101
 community_name: "社區名稱"
-package_id: 3561900
+package_id: 9001
 package_no: "0095"
 recipient_name: "收件人"
 recipient_phone: "0912345678"
@@ -28,9 +28,9 @@ A package previously seen as unpicked is no longer returned by the API.
 
 ```yaml
 entry_id: "<...>"
-community_id: 1777
+community_id: 101
 community_name: "社區名稱"
-package_id: 3561900
+package_id: 9001
 package_no: "0095"
 recipient_name: "收件人"
 placement: "櫃台右側"

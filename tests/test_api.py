@@ -91,9 +91,9 @@ async def test_unpicked_packages_returns_items(hass, load_fixture):
             f"{BASE_URL_API}/resident/api/v76/Package/UnpickedPackages",
             payload=load_fixture("unpicked_packages_two.json"),
         )
-        items = await api.unpicked_packages("access", 1777, 110412)
+        items = await api.unpicked_packages("access", 101, 1001)
     assert len(items) == 2
-    assert items[0]["packageId"] == 3561900
+    assert items[0]["packageId"] == 9001
 
 
 async def test_life_spi_headers_include_community(hass, fresh_access_token):
@@ -103,13 +103,13 @@ async def test_life_spi_headers_include_community(hass, fresh_access_token):
             f"{BASE_URL_API}/resident/api/v76/Package/UnpickedPackages",
             payload={"code": "COM00001", "data": {"items": []}},
         )
-        await api.unpicked_packages(fresh_access_token, 1777, 110412)
+        await api.unpicked_packages(fresh_access_token, 101, 1001)
 
         req = next(iter(m.requests.values()))[0]
         hdrs = req.kwargs["headers"]
         assert hdrs["Authorization"] == f"Bearer {fresh_access_token}"
-        assert hdrs["communityid"] == "1777"
-        assert hdrs["communityunitid"] == "110412"
+        assert hdrs["communityid"] == "101"
+        assert hdrs["communityunitid"] == "1001"
         assert hdrs["app-info"].startswith("Android/14 Beer/")
         assert hdrs["User-Agent"] == "Dart/3.8 (dart:io)"
         assert hdrs["timestamp"].isdigit()
@@ -119,11 +119,11 @@ async def test_package_detail_hits_versioned_path(hass):
     api = GoodLifeApi(async_get_clientsession(hass))
     with aioresponses() as m:
         m.get(
-            f"{BASE_URL_API}/resident/api/v76/Package/PackageDetail/3561900",
+            f"{BASE_URL_API}/resident/api/v76/Package/PackageDetail/9001",
             payload={
                 "code": "COM00001",
                 "data": {
-                    "packageId": 3561900,
+                    "packageId": 9001,
                     "barcode": "TW1234567890",
                     "remark": "易碎",
                     "packageTags": [{"tagName": "冷藏"}],
@@ -131,7 +131,7 @@ async def test_package_detail_hits_versioned_path(hass):
                 },
             },
         )
-        data = await api.package_detail("access", 1777, 110412, 3561900)
+        data = await api.package_detail("access", 101, 1001, 9001)
     assert data["barcode"] == "TW1234567890"
     assert data["logistics"]["companyName"] == "黑貓"
 

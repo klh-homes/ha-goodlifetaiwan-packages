@@ -53,8 +53,11 @@ TOKEN_DIR = Path(
 )
 TOKEN_FILE = TOKEN_DIR / "token.txt"
 REFRESH_FILE = TOKEN_DIR / "refresh_token.txt"
-COMMUNITY_ID = int(os.environ.get("COMMUNITY_ID", "1777"))
-COMMUNITY_UNIT_ID = int(os.environ.get("COMMUNITY_UNIT_ID", "110412"))
+# These defaults are placeholders — set COMMUNITY_ID and COMMUNITY_UNIT_ID
+# environment variables to your actual values before running the smoke test
+# (the v76/Package/UnpickedPackages call signs requests with both as headers).
+COMMUNITY_ID = int(os.environ.get("COMMUNITY_ID", "101"))
+COMMUNITY_UNIT_ID = int(os.environ.get("COMMUNITY_UNIT_ID", "1001"))
 
 REFRESH_MARGIN_SEC = 30
 
