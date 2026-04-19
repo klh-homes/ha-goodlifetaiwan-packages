@@ -6,6 +6,10 @@ While the integration is pre-1.0, minor versions may include breaking changes to
 
 ## [Unreleased]
 
+### Internal
+
+- Added brand icon at `assets/icon.png` and embedded it as a header in `README.md` and `info.md` (HACS preview). Size variants (256×256 + 512×512) staged under `assets/brands/` as a regeneration source; no upstream `home-assistant/brands` PR is planned, so HA UI integration cards stay without a brand icon (status-quo).
+
 ## [0.3.4] - 2026-04-20
 
 ### Fixed

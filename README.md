@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icon.png" alt="GoodLifeTaiwan integration icon" width="128" />
+</p>
+
 # Home Assistant integration for 中保好生活 package tracking and pickup
 
 > **Unofficial integration.** Not affiliated with, endorsed by, or sponsored by 中興保全 (Taiwan Secom) or the operator of 中保好生活 (GoodLifeTaiwan) / glf.tw. All product and company names are trademarks of their respective holders.

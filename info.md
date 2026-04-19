@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icon.png" alt="GoodLifeTaiwan integration icon" width="128" />
+</p>
+
 # Home Assistant integration for 中保好生活 package tracking and pickup
 
 **Features**
