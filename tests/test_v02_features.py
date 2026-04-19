@@ -248,9 +248,7 @@ async def test_expiry_regenerates_when_auto_regen_on(hass, fresh_access_token, l
 
         # Now flip auto_regen on (code already present → no initial regen;
         # only the expiry-timer regen path matters here).
-        hass.config_entries.async_update_entry(
-            entry, options={**entry.options, _AUTO_KEY: True}
-        )
+        hass.config_entries.async_update_entry(entry, options={**entry.options, _AUTO_KEY: True})
 
         # Advance past first expiry → timer fires, triggers auto-regen.
         async_fire_time_changed(hass, first_expiry + timedelta(seconds=1))
@@ -368,18 +366,14 @@ async def test_auto_regenerate_switch_toggles_option(hass, fresh_access_token, l
             payload={"code": "COM00001", "data": {"items": []}},
             repeat=True,
         )
-        await hass.services.async_call(
-            "switch", "turn_on", {"entity_id": switch_id}, blocking=True
-        )
+        await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
         await hass.async_block_till_done()
 
     assert entry.options[_AUTO_KEY] is True
     assert hass.states.get(switch_id).state == "on"
 
     # Flip off — no regen, just option update.
-    await hass.services.async_call(
-        "switch", "turn_off", {"entity_id": switch_id}, blocking=True
-    )
+    await hass.services.async_call("switch", "turn_off", {"entity_id": switch_id}, blocking=True)
     await hass.async_block_till_done()
 
     assert entry.options[_AUTO_KEY] is False

@@ -56,12 +56,8 @@ def _entry(hass, auto_regen: bool) -> MockConfigEntry:
 
 
 async def _seed(hass, entry_id: str, access: str, refresh: str) -> None:
-    store = Store(
-        hass, STORAGE_VERSION, STORAGE_KEY_FMT.format(entry_id=entry_id), private=True
-    )
-    await store.async_save(
-        {"access_token": access, "refresh_token": refresh, "refreshed_at": None}
-    )
+    store = Store(hass, STORAGE_VERSION, STORAGE_KEY_FMT.format(entry_id=entry_id), private=True)
+    await store.async_save({"access_token": access, "refresh_token": refresh, "refreshed_at": None})
 
 
 def _code_payload(code: str, expires_iso: str) -> dict:
@@ -165,9 +161,7 @@ async def test_switch_off_to_on_generates_initial_code(
             payload={"code": "COM00001", "data": {"items": []}},
             repeat=True,
         )
-        await hass.services.async_call(
-            "switch", "turn_on", {"entity_id": switch_id}, blocking=True
-        )
+        await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
         await hass.async_block_till_done()
 
     assert hass.states.get(code_sensor).state == "24680"
@@ -207,13 +201,9 @@ async def test_switch_off_to_on_with_existing_code_is_noop(
     # community.qr is still populated. If a regen fired, aioresponses would
     # raise ConnectionError on the unmocked POST.
     switch_id = "switch.goodlifetaiwan_she_qu_a_auto_regenerate_pickup_code"
-    await hass.services.async_call(
-        "switch", "turn_off", {"entity_id": switch_id}, blocking=True
-    )
+    await hass.services.async_call("switch", "turn_off", {"entity_id": switch_id}, blocking=True)
     await hass.async_block_till_done()
-    await hass.services.async_call(
-        "switch", "turn_on", {"entity_id": switch_id}, blocking=True
-    )
+    await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
     await hass.async_block_till_done()
 
     # Still the same code.

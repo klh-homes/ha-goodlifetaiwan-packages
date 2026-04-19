@@ -214,9 +214,7 @@ async def test_per_community_switch_independent(hass, fresh_access_token, long_r
             payload={"code": "COM00001", "data": {"items": []}},
             repeat=True,
         )
-        await hass.services.async_call(
-            "switch", "turn_on", {"entity_id": a_switch}, blocking=True
-        )
+        await hass.services.async_call("switch", "turn_on", {"entity_id": a_switch}, blocking=True)
         await hass.async_block_till_done()
 
     assert hass.states.get(a_switch).state == "on"

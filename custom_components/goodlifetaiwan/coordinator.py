@@ -326,9 +326,7 @@ class GoodLifeCoordinator(DataUpdateCoordinator[CommunityState]):
             return
         if self.auth.state != AUTH_STATE_OK:
             return
-        auto = self.entry.options.get(
-            auto_regenerate_key(self.community_unit_id), True
-        )
+        auto = self.entry.options.get(auto_regenerate_key(self.community_unit_id), True)
         if not auto:
             return
         try:
