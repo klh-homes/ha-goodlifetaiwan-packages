@@ -1,5 +1,5 @@
-request_qr:
-  name: Request pickup QR code
+request_pickup_code:
+  name: Request pickup code
   description: Generate a fresh 5-digit verification code + QR image for package pickup.
   fields:
     entry_id:

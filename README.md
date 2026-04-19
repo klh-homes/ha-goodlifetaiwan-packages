@@ -8,8 +8,10 @@
 
 - `sensor` — count of unpicked packages with full list as attributes
 - `image` — on-demand pickup QR code
-- services — request QR, SMS re-login
+- `button` — press to request a fresh QR without leaving the UI
+- services — request pickup code, SMS re-login
 - events — package arrived / picked / auth required
+- options — polling interval, optional auto-regenerate QR on expiry
 
 ## Installation
 

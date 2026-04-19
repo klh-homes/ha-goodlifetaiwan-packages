@@ -45,10 +45,10 @@
         Run:  goodlifetaiwan.send_sms  (entry_id: {{ trigger.event.data.entry_id }})
 ```
 
-## iOS Shortcut: request QR and show it
+## iOS Shortcut: request pickup code and show its QR
 
 1. Shortcut → "Get contents of URL".
-2. URL: `https://<your-ha>/api/services/goodlifetaiwan/request_qr?return_response=true`
+2. URL: `https://<your-ha>/api/services/goodlifetaiwan/request_pickup_code?return_response=true`
 3. Method: POST.
 4. Headers:
    - `Authorization: Bearer <HA_LONG_LIVED_TOKEN>`
@@ -70,8 +70,8 @@ cards:
     show_state: false
   - type: entities
     entities:
-      - entity: sensor.goodlifetaiwan_community_qr_code
-        name: Verification code
-      - entity: sensor.goodlifetaiwan_community_qr_expires
+      - entity: sensor.goodlifetaiwan_community_pickup_code
+        name: Pickup code
+      - entity: sensor.goodlifetaiwan_community_pickup_code_expires
         name: Expires
 ```

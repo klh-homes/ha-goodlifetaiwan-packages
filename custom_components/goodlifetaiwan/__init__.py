@@ -26,7 +26,6 @@ from .const import (
     STORAGE_VERSION,
 )
 from .coordinator import CommunityState, GoodLifeCoordinator
-from .entity import community_slug
 from .services import async_register_services, async_unregister_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -82,7 +81,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_register_services(hass)
 
-    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+    # No options-update listener: settings are exposed as CONFIG-category
+    # entities (number.*_scan_interval, switch.*_auto_regenerate_pickup_code)
+    # that live-mutate the coordinator directly, so there's nothing to
+    # reload when options change.
 
     # If auth_needed on setup, ask HA to open the reauth flow.
     if auth.state == "auth_needed":
@@ -92,6 +94,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # Cancel QR expiry timers before tearing down platforms so stray callbacks
+    # don't fire on a dismantled coordinator.
+    bundle = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if bundle is not None:
+        await bundle["coordinator"].async_shutdown_qr_timers()
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
@@ -100,10 +108,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not remaining:
             async_unregister_services(hass)
     return unload_ok
-
-
-async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
 
 
 def _build_community_states(entry: ConfigEntry) -> list[CommunityState]:
@@ -126,13 +130,12 @@ def _build_community_states(entry: ConfigEntry) -> list[CommunityState]:
             continue
         community_id = int(unit.get("communityId") or 0)
         name = str(unit.get("communityName") or f"c{community_id}")
-        slug = community_slug(name, cu_id, community_id)
         states.append(
             CommunityState(
                 community_id=community_id,
                 community_unit_id=cu_id,
                 community_name=name,
-                slug=slug,
+                slug="",  # reserved; HA derives entity_ids from device name
             )
         )
     return states

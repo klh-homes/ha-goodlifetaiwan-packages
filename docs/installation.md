@@ -26,4 +26,6 @@ On first setup the integration asks for the phone number registered with 中保�
 
 ## Running two HA instances on the same account
 
-**Don't.** Refresh tokens rotate on every use; whichever HA refreshes second will be kicked into the `auth_needed` state.
+Fine. Live-tested: the upstream server issues new refresh tokens on every `RefreshMemberToken` call but does not invalidate the old one. Each consumer keeps a valid token up to its 90-day expiry, so the mobile app, production HA, dev HA, and even two HA instances that happen to share a token file all coexist without kicking each other out.
+
+What the integration still assumes: one entry per HA instance (i.e., don't add the same phone number twice on one HA). That's just HA hygiene, not a server restriction.

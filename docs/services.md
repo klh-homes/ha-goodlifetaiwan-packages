@@ -2,7 +2,7 @@
 
 All services are response-capable (HA 2023.7+). Call with `?return_response=true` to receive the response.
 
-## `goodlifetaiwan.request_qr`
+## `goodlifetaiwan.request_pickup_code`
 
 Generate a fresh 5-digit pickup verification code plus a QR PNG.
 
@@ -26,7 +26,7 @@ generated_at: "2026-04-19T14:02:47+08:00"
 ### Example (iOS Shortcut)
 
 ```
-POST /api/services/goodlifetaiwan/request_qr?return_response=true
+POST /api/services/goodlifetaiwan/request_pickup_code?return_response=true
 Authorization: Bearer <HA_LONG_LIVED_TOKEN>
 Content-Type: application/json
 

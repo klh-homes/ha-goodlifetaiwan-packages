@@ -1,4 +1,4 @@
-"""Service handlers: request_qr, send_sms, submit_code.
+"""Service handlers: request_pickup_code, send_sms, submit_code.
 
 Services are registered globally (once across all entries) in __init__.py. The
 handlers here resolve which entry / community the caller addressed, then run
@@ -8,7 +8,6 @@ the underlying operation.
 from __future__ import annotations
 
 import base64
-import io
 import logging
 import re
 import time
@@ -26,15 +25,15 @@ from .const import (
     AUTH_STATE_OK,
     DOMAIN,
     SEND_SMS_RATE_LIMIT_SEC,
-    SERVICE_REQUEST_QR,
+    SERVICE_REQUEST_PICKUP_CODE,
     SERVICE_SEND_SMS,
     SERVICE_SUBMIT_CODE,
 )
-from .coordinator import CommunityState, GoodLifeCoordinator, QrSnapshot
+from .coordinator import CommunityState, GoodLifeCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-_SERVICE_REQUEST_QR_SCHEMA = vol.Schema(
+_SERVICE_REQUEST_PICKUP_CODE_SCHEMA = vol.Schema(
     {
         vol.Optional("entry_id"): cv.string,
         vol.Optional("community_id"): vol.Coerce(int),
@@ -54,11 +53,11 @@ _SEND_SMS_LAST_CALLED: dict[str, float] = {}
 
 
 def async_register_services(hass: HomeAssistant) -> None:
-    if hass.services.has_service(DOMAIN, SERVICE_REQUEST_QR):
+    if hass.services.has_service(DOMAIN, SERVICE_REQUEST_PICKUP_CODE):
         return
 
-    async def _request_qr(call: ServiceCall) -> ServiceResponse:
-        return await _handle_request_qr(hass, call)
+    async def _request_pickup_code(call: ServiceCall) -> ServiceResponse:
+        return await _handle_request_pickup_code(hass, call)
 
     async def _send_sms(call: ServiceCall) -> ServiceResponse:
         return await _handle_send_sms(hass, call)
@@ -68,9 +67,9 @@ def async_register_services(hass: HomeAssistant) -> None:
 
     hass.services.async_register(
         DOMAIN,
-        SERVICE_REQUEST_QR,
-        _request_qr,
-        schema=_SERVICE_REQUEST_QR_SCHEMA,
+        SERVICE_REQUEST_PICKUP_CODE,
+        _request_pickup_code,
+        schema=_SERVICE_REQUEST_PICKUP_CODE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(
@@ -90,15 +89,15 @@ def async_register_services(hass: HomeAssistant) -> None:
 
 
 def async_unregister_services(hass: HomeAssistant) -> None:
-    for svc in (SERVICE_REQUEST_QR, SERVICE_SEND_SMS, SERVICE_SUBMIT_CODE):
+    for svc in (SERVICE_REQUEST_PICKUP_CODE, SERVICE_SEND_SMS, SERVICE_SUBMIT_CODE):
         if hass.services.has_service(DOMAIN, svc):
             hass.services.async_remove(DOMAIN, svc)
 
 
-# --- request_qr -----------------------------------------------------------
+# --- request_pickup_code -----------------------------------------------------------
 
 
-async def _handle_request_qr(hass: HomeAssistant, call: ServiceCall) -> ServiceResponse:
+async def _handle_request_pickup_code(hass: HomeAssistant, call: ServiceCall) -> ServiceResponse:
     entry_id = _resolve_entry_id(hass, call.data.get("entry_id"))
     bundle = hass.data[DOMAIN][entry_id]
     coordinator: GoodLifeCoordinator = bundle["coordinator"]
@@ -113,78 +112,36 @@ async def _handle_request_qr(hass: HomeAssistant, call: ServiceCall) -> ServiceR
 
     state = _resolve_community(coordinator, call.data.get("community_id"))
 
-    async with state.qr_lock:
-        try:
-            access = await auth.async_ensure_access_token()
-        except AuthRequired as err:
-            raise ServiceValidationError(
-                "auth_required",
-                translation_domain=DOMAIN,
-                translation_key="auth_required",
-            ) from err
-        except NetworkError as err:
-            raise HomeAssistantError(f"network_error: {err}") from err
+    started = time.time()
+    try:
+        snap = await coordinator.async_generate_pickup_code(state.community_unit_id)
+    except AuthRequired as err:
+        raise ServiceValidationError(
+            "auth_required",
+            translation_domain=DOMAIN,
+            translation_key="auth_required",
+        ) from err
+    except ApiResponseError as err:
+        raise HomeAssistantError(f"api_error: {err}") from err
+    except NetworkError as err:
+        raise HomeAssistantError(f"network_error: {err}") from err
 
-        started = time.time()
-        try:
-            data = await coordinator.api.create_checkout_verification_code(
-                access, state.community_id, state.community_unit_id
-            )
-        except ApiResponseError as err:
-            raise HomeAssistantError(f"api_error: {err}") from err
-        except NetworkError as err:
-            raise HomeAssistantError(f"network_error: {err}") from err
-
-        code = str(data.get("verificationCode") or "")
-        expires_at = str(data.get("expiredTime") or "")
-        if not code:
-            raise HomeAssistantError("api_error: missing verificationCode")
-
-        png_bytes = await hass.async_add_executor_job(_render_qr_png, code)
-        generated_at = _now_iso()
-
-        snap = QrSnapshot(
-            code=code,
-            expires_at=expires_at,
-            generated_at=generated_at,
-            community_id=state.community_id,
-            png_bytes=png_bytes,
-        )
-        await coordinator.async_set_qr_snapshot(state.community_unit_id, snap)
-
-        duration_ms = int((time.time() - started) * 1000)
-        _LOGGER.info(
-            "service=request_qr entry=%s community=%s duration=%sms code=%s",
-            entry_id[:8],
-            state.community_id,
-            duration_ms,
-            code,
-        )
+    duration_ms = int((time.time() - started) * 1000)
+    _LOGGER.info(
+        "service=request_pickup_code entry=%s community=%s duration=%sms code=%s",
+        entry_id[:8],
+        state.community_id,
+        duration_ms,
+        snap.code,
+    )
 
     return {
-        "code": code,
-        "image_b64": base64.b64encode(png_bytes).decode("ascii"),
-        "expires_at": expires_at,
-        "community_id": state.community_id,
-        "generated_at": generated_at,
+        "code": snap.code,
+        "image_b64": base64.b64encode(snap.png_bytes).decode("ascii"),
+        "expires_at": snap.expires_at,
+        "community_id": snap.community_id,
+        "generated_at": snap.generated_at,
     }
-
-
-def _render_qr_png(payload: str) -> bytes:
-    import qrcode
-
-    qr = qrcode.QRCode(
-        version=None,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(payload)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
 
 
 # --- send_sms -------------------------------------------------------------

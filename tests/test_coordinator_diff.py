@@ -54,6 +54,7 @@ async def _make_coordinator(hass, fresh_access_token, long_refresh_token) -> Goo
 
     class _FakeEntry:
         entry_id = "e1"
+        options: dict = {}
 
     state = CommunityState(
         community_id=1777,

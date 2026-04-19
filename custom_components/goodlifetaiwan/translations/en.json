@@ -39,16 +39,6 @@
       "cannot_connect": "Cannot contact GoodLifeTaiwan servers"
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "GoodLifeTaiwan options",
-        "data": {
-          "scan_interval_seconds": "Poll interval (seconds)"
-        }
-      }
-    }
-  },
   "entity": {
     "sensor": {
       "unpicked": {
@@ -63,24 +53,31 @@
           "error": "Error"
         }
       },
-      "qr_code": {
-        "name": "QR code"
+      "pickup_code": {
+        "name": "Pickup code"
       },
-      "qr_expires": {
-        "name": "QR expires"
-      },
-      "service_health": {
-        "name": "Service",
-        "state": {
-          "ok": "OK",
-          "auth_needed": "Re-login needed",
-          "error": "Error"
-        }
+      "pickup_code_expires": {
+        "name": "Pickup code expires"
       }
     },
     "image": {
       "qr": {
         "name": "QR image"
+      }
+    },
+    "button": {
+      "request_pickup_code": {
+        "name": "Request pickup code"
+      }
+    },
+    "number": {
+      "scan_interval": {
+        "name": "Poll interval"
+      }
+    },
+    "switch": {
+      "auto_regenerate_pickup_code": {
+        "name": "Auto-regenerate pickup code"
       }
     }
   },

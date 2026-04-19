@@ -39,16 +39,6 @@
       "cannot_connect": "無法連線至中保好生活伺服器"
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "中保好生活選項",
-        "data": {
-          "scan_interval_seconds": "輪詢間隔（秒）"
-        }
-      }
-    }
-  },
   "entity": {
     "sensor": {
       "unpicked": {
@@ -63,24 +53,31 @@
           "error": "錯誤"
         }
       },
-      "qr_code": {
-        "name": "驗證碼"
+      "pickup_code": {
+        "name": "取件碼"
       },
-      "qr_expires": {
-        "name": "驗證碼到期"
-      },
-      "service_health": {
-        "name": "服務",
-        "state": {
-          "ok": "正常",
-          "auth_needed": "需重新登入",
-          "error": "錯誤"
-        }
+      "pickup_code_expires": {
+        "name": "取件碼到期"
       }
     },
     "image": {
       "qr": {
         "name": "取件 QR code"
+      }
+    },
+    "button": {
+      "request_pickup_code": {
+        "name": "取得取件碼"
+      }
+    },
+    "number": {
+      "scan_interval": {
+        "name": "輪詢間隔"
+      }
+    },
+    "switch": {
+      "auto_regenerate_pickup_code": {
+        "name": "取件碼到期時自動重新產生"
       }
     }
   },

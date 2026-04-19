@@ -30,7 +30,7 @@ Of the 175 known endpoints, v0.1 consumes **7**:
 | `life-spi.glf.tw`      | `GET /resident/api/Member/MemberInfo`                       | Config flow community selection |
 | `life-spi.glf.tw`      | `GET /resident/api/v76/Package/UnpickedPackages`            | Coordinator poll                |
 | `life-spi.glf.tw`      | `GET /resident/api/v76/Package/PackageDetail/{id}`          | On-demand, not polled           |
-| `life-spi.glf.tw`      | `POST /resident/api/Package/CreateCheckOutVerificationCode` | `request_qr`                    |
+| `life-spi.glf.tw`      | `POST /resident/api/Package/CreateCheckOutVerificationCode` | `request_pickup_code`           |
 
 ## Headers that must match the app fingerprint
 
