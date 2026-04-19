@@ -34,16 +34,16 @@ def _entry(hass, auto_regen: bool) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="+886912345678",
-        options={auto_regenerate_key(110412): auto_regen},
+        options={auto_regenerate_key(1001): auto_regen},
         data={
             CONF_PHONE_NUMBER: "+886912345678",
-            CONF_COMMUNITY_UNIT_IDS: [110412],
+            CONF_COMMUNITY_UNIT_IDS: [1001],
             CONF_MEMBER_INFO: {
                 "communityUnits": [
                     {
-                        "communityId": 1777,
-                        "communityUnitId": 110412,
-                        "communityName": "社區A",
+                        "communityId": 101,
+                        "communityUnitId": 1001,
+                        "communityName": "Test A",
                     }
                 ],
                 "memberId": "m1",
@@ -64,7 +64,7 @@ def _code_payload(code: str, expires_iso: str) -> dict:
     return {
         "code": "COM00001",
         "data": {
-            "communityId": 1777,
+            "communityId": 101,
             "verificationCode": code,
             "expiredTime": expires_iso,
         },
@@ -96,9 +96,20 @@ async def test_setup_with_auto_regen_on_generates_initial_code(
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.goodlifetaiwan_she_qu_a_pickup_code")
+    state = hass.states.get("sensor.goodlifetaiwan_test_a_pickup_code")
     assert state is not None
     assert state.state == "13579"
+
+    # Regression for v0.3.4: when initial-regen runs during async_setup_entry
+    # (before platforms are forwarded), the image entity joins AFTER the QR
+    # snapshot already lives in coordinator.data. Without an async_added_to_hass
+    # sync, the entity never runs _handle_coordinator_update and
+    # _attr_image_last_updated stays None → state reads back as "unknown".
+    image_state = hass.states.get("image.goodlifetaiwan_test_a_qr_image")
+    assert image_state is not None
+    assert image_state.state not in ("unknown", "unavailable"), (
+        f"expected ISO timestamp on image state, got {image_state.state!r}"
+    )
 
 
 async def test_setup_with_auto_regen_off_does_not_generate(
@@ -119,7 +130,7 @@ async def test_setup_with_auto_regen_off_does_not_generate(
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.goodlifetaiwan_she_qu_a_pickup_code")
+    state = hass.states.get("sensor.goodlifetaiwan_test_a_pickup_code")
     assert state is not None
     # No pickup code yet because auto_regen is off.
     assert state.state in ("unknown", "unavailable")
@@ -145,11 +156,11 @@ async def test_switch_off_to_on_generates_initial_code(
         await hass.async_block_till_done()
 
     # Precondition: no pickup code yet.
-    code_sensor = "sensor.goodlifetaiwan_she_qu_a_pickup_code"
+    code_sensor = "sensor.goodlifetaiwan_test_a_pickup_code"
     assert hass.states.get(code_sensor).state in ("unknown", "unavailable")
 
     # Turn the switch on → initial regen fires.
-    switch_id = "switch.goodlifetaiwan_she_qu_a_auto_regenerate_pickup_code"
+    switch_id = "switch.goodlifetaiwan_test_a_auto_regenerate_pickup_code"
     expiry = (dt_util.utcnow() + timedelta(minutes=10)).isoformat()
     with aioresponses() as m:
         m.post(
@@ -194,13 +205,13 @@ async def test_switch_off_to_on_with_existing_code_is_noop(
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    code_sensor = "sensor.goodlifetaiwan_she_qu_a_pickup_code"
+    code_sensor = "sensor.goodlifetaiwan_test_a_pickup_code"
     assert hass.states.get(code_sensor).state == "99999"
 
     # Toggle the switch off then on — no regen on the on transition because
     # community.qr is still populated. If a regen fired, aioresponses would
     # raise ConnectionError on the unmocked POST.
-    switch_id = "switch.goodlifetaiwan_she_qu_a_auto_regenerate_pickup_code"
+    switch_id = "switch.goodlifetaiwan_test_a_auto_regenerate_pickup_code"
     await hass.services.async_call("switch", "turn_off", {"entity_id": switch_id}, blocking=True)
     await hass.async_block_till_done()
     await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)

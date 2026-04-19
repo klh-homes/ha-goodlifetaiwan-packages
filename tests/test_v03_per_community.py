@@ -34,8 +34,8 @@ def _entry_two_communities(hass, options: dict | None = None) -> MockConfigEntry
     opts = options or {}
     defaults: dict = {}
     if LEGACY_CONF_AUTO_REGENERATE_PICKUP_CODE not in opts:
-        defaults[auto_regenerate_key(110412)] = False
-        defaults[auto_regenerate_key(220555)] = False
+        defaults[auto_regenerate_key(1001)] = False
+        defaults[auto_regenerate_key(1002)] = False
     merged = {**defaults, **opts}
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -43,18 +43,18 @@ def _entry_two_communities(hass, options: dict | None = None) -> MockConfigEntry
         options=merged,
         data={
             CONF_PHONE_NUMBER: "+886912345678",
-            CONF_COMMUNITY_UNIT_IDS: [110412, 220555],
+            CONF_COMMUNITY_UNIT_IDS: [1001, 1002],
             CONF_MEMBER_INFO: {
                 "communityUnits": [
                     {
-                        "communityId": 1777,
-                        "communityUnitId": 110412,
-                        "communityName": "社區A",
+                        "communityId": 101,
+                        "communityUnitId": 1001,
+                        "communityName": "Test A",
                     },
                     {
-                        "communityId": 2888,
-                        "communityUnitId": 220555,
-                        "communityName": "社區B",
+                        "communityId": 102,
+                        "communityUnitId": 1002,
+                        "communityName": "Test B",
                     },
                 ],
                 "memberId": "m1",
@@ -87,7 +87,7 @@ async def _setup(hass, entry, fresh_access, refresh) -> None:
             payload={
                 "code": "COM00001",
                 "data": {
-                    "communityId": 1777,
+                    "communityId": 101,
                     "verificationCode": "00000",
                     "expiredTime": "2099-01-01T00:00:00+00:00",
                 },
@@ -114,10 +114,10 @@ async def test_legacy_options_migrate_to_per_community(
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     # Both communities inherit the legacy values.
-    assert entry.options[scan_interval_key(110412)] == 900
-    assert entry.options[scan_interval_key(220555)] == 900
-    assert entry.options[auto_regenerate_key(110412)] is True
-    assert entry.options[auto_regenerate_key(220555)] is True
+    assert entry.options[scan_interval_key(1001)] == 900
+    assert entry.options[scan_interval_key(1002)] == 900
+    assert entry.options[auto_regenerate_key(1001)] is True
+    assert entry.options[auto_regenerate_key(1002)] is True
     # Legacy keys stripped.
     assert LEGACY_CONF_SCAN_INTERVAL not in entry.options
     assert LEGACY_CONF_AUTO_REGENERATE_PICKUP_CODE not in entry.options
@@ -129,20 +129,20 @@ async def test_two_communities_get_independent_coordinators(
     entry = _entry_two_communities(
         hass,
         options={
-            scan_interval_key(110412): 120,
-            scan_interval_key(220555): 600,
+            scan_interval_key(1001): 120,
+            scan_interval_key(1002): 600,
         },
     )
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     coordinators = hass.data[DOMAIN][entry.entry_id]["coordinators"]
-    assert set(coordinators) == {110412, 220555}
-    assert coordinators[110412].update_interval == timedelta(seconds=120)
-    assert coordinators[220555].update_interval == timedelta(seconds=600)
+    assert set(coordinators) == {1001, 1002}
+    assert coordinators[1001].update_interval == timedelta(seconds=120)
+    assert coordinators[1002].update_interval == timedelta(seconds=600)
     # Each coordinator owns exactly its own community state.
-    assert coordinators[110412].community.community_unit_id == 110412
-    assert coordinators[220555].community.community_unit_id == 220555
-    assert coordinators[110412] is not coordinators[220555]
+    assert coordinators[1001].community.community_unit_id == 1001
+    assert coordinators[1002].community.community_unit_id == 1002
+    assert coordinators[1001] is not coordinators[1002]
 
 
 async def test_per_community_number_entity_mutates_only_its_coordinator(
@@ -152,8 +152,8 @@ async def test_per_community_number_entity_mutates_only_its_coordinator(
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     # Each community gets its own number entity, independent.
-    a_number = "number.goodlifetaiwan_she_qu_a_poll_interval"
-    b_number = "number.goodlifetaiwan_she_qu_b_poll_interval"
+    a_number = "number.goodlifetaiwan_test_a_poll_interval"
+    b_number = "number.goodlifetaiwan_test_b_poll_interval"
     assert hass.states.get(a_number) is not None
     assert hass.states.get(b_number) is not None
 
@@ -173,11 +173,11 @@ async def test_per_community_number_entity_mutates_only_its_coordinator(
 
     coordinators = hass.data[DOMAIN][entry.entry_id]["coordinators"]
     # Only A's coordinator changed.
-    assert coordinators[110412].update_interval == timedelta(seconds=120)
-    assert coordinators[220555].update_interval == timedelta(seconds=300)  # still default
+    assert coordinators[1001].update_interval == timedelta(seconds=120)
+    assert coordinators[1002].update_interval == timedelta(seconds=300)  # still default
     # Only A's per-community key was written.
-    assert entry.options[scan_interval_key(110412)] == 120
-    assert scan_interval_key(220555) not in entry.options
+    assert entry.options[scan_interval_key(1001)] == 120
+    assert scan_interval_key(1002) not in entry.options
 
 
 async def test_per_community_switch_independent(hass, fresh_access_token, long_refresh_token):
@@ -186,8 +186,8 @@ async def test_per_community_switch_independent(hass, fresh_access_token, long_r
     entry = _entry_two_communities(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
-    a_switch = "switch.goodlifetaiwan_she_qu_a_auto_regenerate_pickup_code"
-    b_switch = "switch.goodlifetaiwan_she_qu_b_auto_regenerate_pickup_code"
+    a_switch = "switch.goodlifetaiwan_test_a_auto_regenerate_pickup_code"
+    b_switch = "switch.goodlifetaiwan_test_b_auto_regenerate_pickup_code"
     assert hass.states.get(a_switch).state == "off"
     assert hass.states.get(b_switch).state == "off"
 
@@ -203,7 +203,7 @@ async def test_per_community_switch_independent(hass, fresh_access_token, long_r
             payload={
                 "code": "COM00001",
                 "data": {
-                    "communityId": 1777,
+                    "communityId": 101,
                     "verificationCode": "33333",
                     "expiredTime": expiry,
                 },
@@ -219,6 +219,6 @@ async def test_per_community_switch_independent(hass, fresh_access_token, long_r
 
     assert hass.states.get(a_switch).state == "on"
     assert hass.states.get(b_switch).state == "off"  # unchanged
-    assert entry.options[auto_regenerate_key(110412)] is True
+    assert entry.options[auto_regenerate_key(1001)] is True
     # B's option untouched.
-    assert entry.options[auto_regenerate_key(220555)] is False
+    assert entry.options[auto_regenerate_key(1002)] is False

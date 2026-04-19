@@ -58,11 +58,11 @@ async def _make_coordinator(hass, fresh_access_token, long_refresh_token) -> Goo
         entry_id = "e1"
         # Explicit opt-out so expiry timers fired during teardown don't try to
         # auto-regen against a closed aioresponses mock (v0.3 default is True).
-        options: dict = {auto_regenerate_key(110412): False}
+        options: dict = {auto_regenerate_key(1001): False}
 
     state = CommunityState(
-        community_id=1777,
-        community_unit_id=110412,
+        community_id=101,
+        community_unit_id=1001,
         community_name="測試社區",
         slug="",
     )
@@ -115,7 +115,7 @@ async def test_second_poll_new_package_fires_arrived(hass, fresh_access_token, l
     assert len(arrived) == 1
     ev = arrived[0].data
     assert ev["entry_id"] == "e1"
-    assert ev["community_id"] == 1777
+    assert ev["community_id"] == 101
     assert ev["community_name"] == "測試社區"
     assert ev["package_id"] == 2
     assert ev["recipient_name"] == "Bob"
@@ -157,7 +157,7 @@ async def test_second_poll_missing_package_fires_picked(
     assert ev["package_id"] == 1
     assert ev["recipient_name"] == "Alice"
     assert ev["placement"] == "櫃台"
-    assert ev["community_id"] == 1777
+    assert ev["community_id"] == 101
 
 
 async def test_qr_snapshot_updates_state_and_notifies(hass, fresh_access_token, long_refresh_token):
@@ -175,7 +175,7 @@ async def test_qr_snapshot_updates_state_and_notifies(hass, fresh_access_token, 
         code="52229",
         expires_at="2026-04-19T14:12:47+08:00",
         generated_at="2026-04-19T14:02:47+08:00",
-        community_id=1777,
+        community_id=101,
         png_bytes=b"\x89PNG\r\n\x1a\n",
     )
     await coord.async_set_qr_snapshot(snap)

@@ -40,16 +40,16 @@ def _entry(hass) -> MockConfigEntry:
         domain=DOMAIN,
         unique_id="+886912345678",
         # Opt out of auto-regen so expiry timers don't interfere with the test.
-        options={auto_regenerate_key(110412): False},
+        options={auto_regenerate_key(1001): False},
         data={
             CONF_PHONE_NUMBER: "+886912345678",
-            CONF_COMMUNITY_UNIT_IDS: [110412],
+            CONF_COMMUNITY_UNIT_IDS: [1001],
             CONF_MEMBER_INFO: {
                 "communityUnits": [
                     {
-                        "communityId": 1777,
-                        "communityUnitId": 110412,
-                        "communityName": "社區A",
+                        "communityId": 101,
+                        "communityUnitId": 1001,
+                        "communityName": "Test A",
                     }
                 ],
                 "memberId": "m1",
@@ -82,7 +82,7 @@ def _code_payload(code: str, expires_at: str) -> dict:
     return {
         "code": "COM00001",
         "data": {
-            "communityId": 1777,
+            "communityId": 101,
             "verificationCode": code,
             "expiredTime": expires_at,
         },
@@ -109,9 +109,9 @@ async def test_same_code_is_noop(hass, fresh_access_token, long_refresh_token):
         )
         await hass.async_block_till_done()
 
-    code_id = "sensor.goodlifetaiwan_she_qu_a_pickup_code"
-    expires_id = "sensor.goodlifetaiwan_she_qu_a_pickup_code_expires"
-    image_id = "image.goodlifetaiwan_she_qu_a_qr_image"
+    code_id = "sensor.goodlifetaiwan_test_a_pickup_code"
+    expires_id = "sensor.goodlifetaiwan_test_a_pickup_code_expires"
+    image_id = "image.goodlifetaiwan_test_a_qr_image"
 
     before_code = hass.states.get(code_id)
     before_expires = hass.states.get(expires_id)
@@ -175,10 +175,10 @@ async def test_different_code_does_update(hass, fresh_access_token, long_refresh
             DOMAIN, "request_pickup_code", {}, blocking=True, return_response=True
         )
         await hass.async_block_till_done()
-        assert hass.states.get("sensor.goodlifetaiwan_she_qu_a_pickup_code").state == "11111"
+        assert hass.states.get("sensor.goodlifetaiwan_test_a_pickup_code").state == "11111"
 
         await hass.services.async_call(
             DOMAIN, "request_pickup_code", {}, blocking=True, return_response=True
         )
         await hass.async_block_till_done()
-        assert hass.states.get("sensor.goodlifetaiwan_she_qu_a_pickup_code").state == "22222"
+        assert hass.states.get("sensor.goodlifetaiwan_test_a_pickup_code").state == "22222"

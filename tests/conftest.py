@@ -94,12 +94,12 @@ def mock_config_entry(hass, fresh_access_token, long_refresh_token):
         title="中保好生活 ***5678",
         data={
             CONF_PHONE_NUMBER: "+886912345678",
-            CONF_COMMUNITY_UNIT_IDS: [110412],
+            CONF_COMMUNITY_UNIT_IDS: [1001],
             CONF_MEMBER_INFO: {
                 "communityUnits": [
                     {
-                        "communityId": 1777,
-                        "communityUnitId": 110412,
+                        "communityId": 101,
+                        "communityUnitId": 1001,
                         "communityName": "測試社區",
                         "shortAddress": "1號1樓",
                     }

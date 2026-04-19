@@ -44,16 +44,16 @@ def _entry(hass) -> MockConfigEntry:
         domain=DOMAIN,
         unique_id="+886912345678",
         # auto_regen off so setup doesn't hit CreateCheckOutVerificationCode.
-        options={auto_regenerate_key(110412): False},
+        options={auto_regenerate_key(1001): False},
         data={
             CONF_PHONE_NUMBER: "+886912345678",
-            CONF_COMMUNITY_UNIT_IDS: [110412],
+            CONF_COMMUNITY_UNIT_IDS: [1001],
             CONF_MEMBER_INFO: {
                 "communityUnits": [
                     {
-                        "communityId": 1777,
-                        "communityUnitId": 110412,
-                        "communityName": "社區A",
+                        "communityId": 101,
+                        "communityUnitId": 1001,
+                        "communityName": "Test A",
                     }
                 ],
                 "memberId": "m1",
