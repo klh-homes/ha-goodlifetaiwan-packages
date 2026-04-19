@@ -1,0 +1,116 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "GoodLifeTaiwan — phone number",
+        "description": "Enter the phone number registered with 中保好生活. Taiwan numbers can be entered as 09XXXXXXXX or in full +886 format.",
+        "data": {
+          "phone_number": "Phone number"
+        }
+      },
+      "sms_verify": {
+        "title": "Enter SMS code",
+        "description": "A 6-digit code was sent to {phone_masked}. Enter it below within 3 minutes.",
+        "data": {
+          "code": "Verification code"
+        }
+      },
+      "community": {
+        "title": "Select communities",
+        "description": "Your account has access to multiple communities. Choose which to import.",
+        "data": {
+          "communities": "Communities"
+        }
+      }
+    },
+    "error": {
+      "invalid_phone_format": "Phone number format not recognized",
+      "invalid_code_format": "Code must be 6 digits",
+      "code_incorrect": "Verification code rejected",
+      "sms_expired_restart": "Verification session expired — requesting a new SMS",
+      "network": "Network error — check connection and try again",
+      "api_error": "Server returned an error",
+      "at_least_one": "Select at least one community",
+      "phone_mismatch": "Phone number does not match the existing entry"
+    },
+    "abort": {
+      "already_configured": "This phone number is already set up",
+      "reauth_successful": "Re-authentication successful",
+      "cannot_connect": "Cannot contact GoodLifeTaiwan servers"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "GoodLifeTaiwan options",
+        "data": {
+          "scan_interval_seconds": "Poll interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "unpicked": {
+        "name": "Unpicked packages"
+      },
+      "auth_status": {
+        "name": "Auth status",
+        "state": {
+          "ok": "OK",
+          "refreshing": "Refreshing",
+          "auth_needed": "Re-login needed",
+          "error": "Error"
+        }
+      },
+      "qr_code": {
+        "name": "QR code"
+      },
+      "qr_expires": {
+        "name": "QR expires"
+      },
+      "service_health": {
+        "name": "Service",
+        "state": {
+          "ok": "OK",
+          "auth_needed": "Re-login needed",
+          "error": "Error"
+        }
+      }
+    },
+    "image": {
+      "qr": {
+        "name": "QR image"
+      }
+    }
+  },
+  "exceptions": {
+    "auth_required": {
+      "message": "Re-login required. Call goodlifetaiwan.send_sms first."
+    },
+    "already_authenticated": {
+      "message": "Already authenticated; re-login not needed."
+    },
+    "rate_limited": {
+      "message": "SMS was requested recently; wait before retrying."
+    },
+    "invalid_code_format": {
+      "message": "Verification code must be 6 digits."
+    },
+    "no_pending_verification": {
+      "message": "No pending SMS verification; call send_sms first."
+    },
+    "ambiguous_entry": {
+      "message": "Multiple GoodLifeTaiwan accounts configured; specify entry_id."
+    },
+    "ambiguous_community": {
+      "message": "Entry has multiple communities; specify community_id."
+    },
+    "unknown_entry": {
+      "message": "Unknown entry_id."
+    },
+    "unknown_community": {
+      "message": "Unknown community_id for this entry."
+    }
+  }
+}

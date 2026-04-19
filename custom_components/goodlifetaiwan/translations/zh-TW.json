@@ -1,0 +1,116 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "中保好生活 — 手機號碼",
+        "description": "輸入您中保好生活綁定的手機號碼。台灣號碼可輸入 09XXXXXXXX，或完整的 +886 格式。",
+        "data": {
+          "phone_number": "手機號碼"
+        }
+      },
+      "sms_verify": {
+        "title": "輸入驗證碼",
+        "description": "簡訊驗證碼已寄到 {phone_masked}，請在 3 分鐘內輸入。",
+        "data": {
+          "code": "驗證碼"
+        }
+      },
+      "community": {
+        "title": "選擇社區",
+        "description": "您的帳號可存取多個社區，請選擇要匯入的社區。",
+        "data": {
+          "communities": "社區"
+        }
+      }
+    },
+    "error": {
+      "invalid_phone_format": "無法辨識的手機號碼格式",
+      "invalid_code_format": "驗證碼必須為 6 位數字",
+      "code_incorrect": "驗證碼錯誤",
+      "sms_expired_restart": "驗證階段已逾時，將重新發送簡訊",
+      "network": "網路錯誤，請檢查連線後重試",
+      "api_error": "伺服器回應錯誤",
+      "at_least_one": "至少要選擇一個社區",
+      "phone_mismatch": "手機號碼與現有帳號不符"
+    },
+    "abort": {
+      "already_configured": "此手機號碼已設定過",
+      "reauth_successful": "重新認證成功",
+      "cannot_connect": "無法連線至中保好生活伺服器"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "中保好生活選項",
+        "data": {
+          "scan_interval_seconds": "輪詢間隔（秒）"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "unpicked": {
+        "name": "未領包裹"
+      },
+      "auth_status": {
+        "name": "認證狀態",
+        "state": {
+          "ok": "正常",
+          "refreshing": "更新中",
+          "auth_needed": "需重新登入",
+          "error": "錯誤"
+        }
+      },
+      "qr_code": {
+        "name": "驗證碼"
+      },
+      "qr_expires": {
+        "name": "驗證碼到期"
+      },
+      "service_health": {
+        "name": "服務",
+        "state": {
+          "ok": "正常",
+          "auth_needed": "需重新登入",
+          "error": "錯誤"
+        }
+      }
+    },
+    "image": {
+      "qr": {
+        "name": "取件 QR code"
+      }
+    }
+  },
+  "exceptions": {
+    "auth_required": {
+      "message": "需重新登入。請先呼叫 goodlifetaiwan.send_sms。"
+    },
+    "already_authenticated": {
+      "message": "目前已登入，無需重新認證。"
+    },
+    "rate_limited": {
+      "message": "剛剛已要求過簡訊，請稍候再試。"
+    },
+    "invalid_code_format": {
+      "message": "驗證碼必須為 6 位數字。"
+    },
+    "no_pending_verification": {
+      "message": "沒有待驗證的簡訊，請先呼叫 send_sms。"
+    },
+    "ambiguous_entry": {
+      "message": "有多個中保好生活帳號，請指定 entry_id。"
+    },
+    "ambiguous_community": {
+      "message": "此帳號有多個社區，請指定 community_id。"
+    },
+    "unknown_entry": {
+      "message": "未知的 entry_id。"
+    },
+    "unknown_community": {
+      "message": "未知的 community_id。"
+    }
+  }
+}
