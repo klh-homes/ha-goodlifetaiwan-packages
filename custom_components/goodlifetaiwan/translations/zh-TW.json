@@ -44,7 +44,11 @@
       "init": {
         "title": "中保好生活選項",
         "data": {
-          "scan_interval_seconds": "輪詢間隔（秒）"
+          "scan_interval_seconds": "輪詢間隔（秒）",
+          "auto_regenerate_pickup_code": "取件碼到期時自動重新產生"
+        },
+        "data_description": {
+          "auto_regenerate_pickup_code": "關閉（預設）：取件碼到期後清空 sensor，按按鈕（或呼叫 request_pickup_code）再產生新的。開啟：每 10 分鐘自動產生一組新的取件碼，即使沒人用。警告：伺服器可能在發放新碼時讓舊碼失效，若您正在取件中途可能被中斷。"
         }
       }
     }
@@ -63,24 +67,21 @@
           "error": "錯誤"
         }
       },
-      "qr_code": {
-        "name": "驗證碼"
+      "pickup_code": {
+        "name": "取件碼"
       },
-      "qr_expires": {
-        "name": "驗證碼到期"
-      },
-      "service_health": {
-        "name": "服務",
-        "state": {
-          "ok": "正常",
-          "auth_needed": "需重新登入",
-          "error": "錯誤"
-        }
+      "pickup_code_expires": {
+        "name": "取件碼到期"
       }
     },
     "image": {
       "qr": {
         "name": "取件 QR code"
+      }
+    },
+    "button": {
+      "request_pickup_code": {
+        "name": "取得取件碼"
       }
     }
   },

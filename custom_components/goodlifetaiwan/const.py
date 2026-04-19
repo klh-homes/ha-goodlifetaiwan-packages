@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "goodlifetaiwan"
-PLATFORMS: tuple[str, ...] = ("sensor", "image")
+PLATFORMS: tuple[str, ...] = ("sensor", "image", "button")
 
 # API hosts
 BASE_URL_API = "https://life-spi.glf.tw"
@@ -22,7 +22,7 @@ EVENT_AUTH_SUCCESS = f"{DOMAIN}_auth_success"
 EVENT_AUTH_FAILED = f"{DOMAIN}_auth_failed"
 
 # Service names
-SERVICE_REQUEST_QR = "request_qr"
+SERVICE_REQUEST_PICKUP_CODE = "request_pickup_code"
 SERVICE_SEND_SMS = "send_sms"
 SERVICE_SUBMIT_CODE = "submit_code"
 
@@ -31,6 +31,7 @@ CONF_PHONE_NUMBER = "phone_number"
 CONF_COMMUNITY_UNIT_IDS = "community_unit_ids"
 CONF_MEMBER_INFO = "member_info"
 CONF_SCAN_INTERVAL = "scan_interval_seconds"
+CONF_AUTO_REGENERATE_PICKUP_CODE = "auto_regenerate_pickup_code"
 
 # Storage
 STORAGE_VERSION = 1
@@ -54,12 +55,6 @@ AUTH_STATE_ERROR = "error"
 AUTH_STATES: tuple[str, ...] = (
     AUTH_STATE_OK,
     AUTH_STATE_REFRESHING,
-    AUTH_STATE_AUTH_NEEDED,
-    AUTH_STATE_ERROR,
-)
-
-SERVICE_HEALTH_STATES: tuple[str, ...] = (
-    AUTH_STATE_OK,
     AUTH_STATE_AUTH_NEEDED,
     AUTH_STATE_ERROR,
 )

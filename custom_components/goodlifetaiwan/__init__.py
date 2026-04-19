@@ -26,7 +26,6 @@ from .const import (
     STORAGE_VERSION,
 )
 from .coordinator import CommunityState, GoodLifeCoordinator
-from .entity import community_slug
 from .services import async_register_services, async_unregister_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -92,6 +91,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # Cancel QR expiry timers before tearing down platforms so stray callbacks
+    # don't fire on a dismantled coordinator.
+    bundle = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if bundle is not None:
+        await bundle["coordinator"].async_shutdown_qr_timers()
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
@@ -126,13 +131,12 @@ def _build_community_states(entry: ConfigEntry) -> list[CommunityState]:
             continue
         community_id = int(unit.get("communityId") or 0)
         name = str(unit.get("communityName") or f"c{community_id}")
-        slug = community_slug(name, cu_id, community_id)
         states.append(
             CommunityState(
                 community_id=community_id,
                 community_unit_id=cu_id,
                 community_name=name,
-                slug=slug,
+                slug="",  # reserved; HA derives entity_ids from device name
             )
         )
     return states

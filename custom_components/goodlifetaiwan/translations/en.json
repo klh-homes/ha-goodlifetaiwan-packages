@@ -44,7 +44,11 @@
       "init": {
         "title": "GoodLifeTaiwan options",
         "data": {
-          "scan_interval_seconds": "Poll interval (seconds)"
+          "scan_interval_seconds": "Poll interval (seconds)",
+          "auto_regenerate_pickup_code": "Auto-regenerate pickup code when it expires"
+        },
+        "data_description": {
+          "auto_regenerate_pickup_code": "Off (default): when the pickup code expires, the sensors clear and you press the button (or call request_pickup_code) to get a fresh one. On: the integration requests a new code ~every 10 minutes, even if unused. Warning: the server may invalidate prior codes when new ones are issued, which can disrupt an in-progress pickup."
         }
       }
     }
@@ -63,24 +67,21 @@
           "error": "Error"
         }
       },
-      "qr_code": {
-        "name": "QR code"
+      "pickup_code": {
+        "name": "Pickup code"
       },
-      "qr_expires": {
-        "name": "QR expires"
-      },
-      "service_health": {
-        "name": "Service",
-        "state": {
-          "ok": "OK",
-          "auth_needed": "Re-login needed",
-          "error": "Error"
-        }
+      "pickup_code_expires": {
+        "name": "Pickup code expires"
       }
     },
     "image": {
       "qr": {
         "name": "QR image"
+      }
+    },
+    "button": {
+      "request_pickup_code": {
+        "name": "Request pickup code"
       }
     }
   },

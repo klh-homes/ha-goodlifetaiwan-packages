@@ -6,6 +6,37 @@ While the integration is pre-1.0, minor versions may include breaking changes to
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-19
+
+### Breaking
+
+- Removed the per-account `sensor.*_service` aggregate (service_health). Per-community `sensor.*_auth_status` already mirrors the same auth state, and the aggregate's unique attribute (`communities[]`) has no automation use-case the per-community sensors don't already cover. The account device (which held this one sensor) is removed; only community devices remain. Users with automations targeting `sensor.*_service` need to retarget to `sensor.*_auth_status` for a specific community or listen for the `goodlifetaiwan_auth_required` event.
+- Renamed entities and the service for accuracy — the 5-digit string was never a QR; it's the pickup code, and the QR image just encodes it. The old names stay in the entity registry as orphans after upgrading; delete them manually from **Settings → Devices & Services → goodlifetaiwan → entities** or the entity registry panel.
+  - `sensor.*_qr_code` → `sensor.*_pickup_code`
+  - `sensor.*_qr_expires` → `sensor.*_pickup_code_expires`
+  - `button.*_request_qr` → `button.*_request_pickup_code`
+  - `goodlifetaiwan.request_qr` service → `goodlifetaiwan.request_pickup_code`
+  - Vocabulary note: "verification code" / 驗證碼 is reserved throughout the integration for the SMS code used at login (config flow, `submit_code` service). The 5-digit code used at the pickup counter is "pickup code" / 取件碼 everywhere it's user-facing. The upstream API calls both `verificationCode` on the wire; `api.py` preserves the server vocabulary because it's a thin binding, but user-facing strings/entities/services do not.
+
+### Added
+
+- `button.*_request_pickup_code` per community — a UI-native way to trigger pickup-code generation without going through Developer Tools. Shares the same code path as the `request_pickup_code` service and the auto-regenerate timer.
+- Pickup-code expiry handling. When the 10-minute code expires, the integration clears the snapshot by default (sensors go to `unknown`, dashboard shows "no active code"). Users who prefer an always-fresh code can enable `auto_regenerate_pickup_code` in Options.
+- Options flow: `auto_regenerate_pickup_code` toggle (default `False`). Warning noted in the option description: the server may invalidate prior codes when new ones are issued, which can disrupt an in-progress pickup.
+
+### Fixed
+
+- `image.*_qr` entity state is published immediately when a snapshot arrives. Previously it stayed `unknown` until an unrelated coordinator event triggered a state write — the PNG bytes were served correctly, but the state text lagged. The timestamp update is now inside `_handle_coordinator_update` so `async_write_ha_state` picks it up.
+
+### Changed
+
+- Pickup-code generation logic consolidated into `coordinator.async_generate_pickup_code`. The `request_pickup_code` service, the button entity, and the auto-regen timer all share this one method so behaviour (locking, error mapping, snapshot publishing, expiry scheduling) is identical across entry points.
+
+### Removed
+
+- Dead `community_slug` helper (never referenced in entity IDs — HA derives those from the device name). Three `test_community_slug_*` tests removed accordingly.
+- `SERVICE_HEALTH_STATES` const and `service_health` translation keys.
+
 ## [0.1.0] - 2026-04-19
 
 Initial release.
@@ -29,5 +60,6 @@ Initial release.
 - The module-level rate-limit for `send_sms` resets on HA restart. Acceptable — real-world call frequency is near zero.
 - Refresh tokens are single-use rotating; running the integration on two HA instances for the same account will break one of them.
 
-[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.2.0
 [0.1.0]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.1.0

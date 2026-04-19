@@ -1,4 +1,4 @@
-"""Sensor platform: unpicked count, auth status, QR code/expiry, service health."""
+"""Sensor platform: unpicked count, auth status, verification code, code expiry."""
 
 from __future__ import annotations
 
@@ -17,14 +17,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .auth import AuthManager
-from .const import AUTH_STATES, DOMAIN, SERVICE_HEALTH_STATES
+from .const import AUTH_STATES, DOMAIN
 from .coordinator import CommunityState, GoodLifeCoordinator
-from .entity import (
-    account_device_info,
-    community_device_info,
-    community_slug,
-    unique_id,
-)
+from .entity import community_device_info, unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,12 +33,12 @@ async def async_setup_entry(
     coordinator: GoodLifeCoordinator = bundle["coordinator"]
     auth: AuthManager = bundle["auth"]
 
-    entities: list[SensorEntity] = [ServiceHealthSensor(coordinator, auth, entry)]
+    entities: list[SensorEntity] = []
     for state in coordinator.communities.values():
         entities.append(UnpickedSensor(coordinator, entry, state))
         entities.append(AuthStatusSensor(coordinator, auth, entry, state))
-        entities.append(QrCodeSensor(coordinator, entry, state))
-        entities.append(QrExpiresSensor(coordinator, entry, state))
+        entities.append(PickupCodeSensor(coordinator, entry, state))
+        entities.append(PickupCodeExpiresSensor(coordinator, entry, state))
 
     async_add_entities(entities)
 
@@ -60,9 +55,6 @@ class _BaseCommunitySensor(CoordinatorEntity[GoodLifeCoordinator], SensorEntity)
         super().__init__(coordinator)
         self._entry = entry
         self._cu_id = state.community_unit_id
-        self._slug = state.slug or community_slug(
-            state.community_name, state.community_unit_id, state.community_id
-        )
         self._attr_device_info = community_device_info(entry.entry_id, state)
 
     @property
@@ -154,13 +146,13 @@ class AuthStatusSensor(CoordinatorEntity[GoodLifeCoordinator], SensorEntity):
         }
 
 
-class QrCodeSensor(_BaseCommunitySensor):
-    _attr_translation_key = "qr_code"
+class PickupCodeSensor(_BaseCommunitySensor):
+    _attr_translation_key = "pickup_code"
     _attr_icon = "mdi:numeric-5-box-outline"
 
     def __init__(self, coordinator, entry, state: CommunityState) -> None:
         super().__init__(coordinator, entry, state)
-        self._attr_unique_id = unique_id(entry.entry_id, state.community_unit_id, "qr_code")
+        self._attr_unique_id = unique_id(entry.entry_id, state.community_unit_id, "pickup_code")
 
     @property
     def native_value(self) -> str | None:
@@ -181,14 +173,16 @@ class QrCodeSensor(_BaseCommunitySensor):
         }
 
 
-class QrExpiresSensor(_BaseCommunitySensor):
-    _attr_translation_key = "qr_expires"
+class PickupCodeExpiresSensor(_BaseCommunitySensor):
+    _attr_translation_key = "pickup_code_expires"
     _attr_icon = "mdi:clock-end"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coordinator, entry, state: CommunityState) -> None:
         super().__init__(coordinator, entry, state)
-        self._attr_unique_id = unique_id(entry.entry_id, state.community_unit_id, "qr_expires")
+        self._attr_unique_id = unique_id(
+            entry.entry_id, state.community_unit_id, "pickup_code_expires"
+        )
 
     @property
     def native_value(self) -> datetime | None:
@@ -199,63 +193,3 @@ class QrExpiresSensor(_BaseCommunitySensor):
             return datetime.fromisoformat(state.qr.expires_at)
         except ValueError:
             return None
-
-
-class ServiceHealthSensor(CoordinatorEntity[GoodLifeCoordinator], SensorEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "service_health"
-    _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = list(SERVICE_HEALTH_STATES)
-    _attr_icon = "mdi:heart-pulse"
-
-    def __init__(
-        self,
-        coordinator: GoodLifeCoordinator,
-        auth: AuthManager,
-        entry: ConfigEntry,
-    ) -> None:
-        super().__init__(coordinator)
-        self._auth = auth
-        self._entry = entry
-        self._attr_unique_id = unique_id(entry.entry_id, None, "service_health")
-        self._attr_device_info = account_device_info(
-            entry.entry_id, entry.data.get("phone_number", "")
-        )
-        self._unsub_auth: Any = None
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        self._unsub_auth = self._auth.register_state_listener(self._on_auth_state)
-
-    async def async_will_remove_from_hass(self) -> None:
-        if self._unsub_auth is not None:
-            self._unsub_auth()
-        await super().async_will_remove_from_hass()
-
-    @callback
-    def _on_auth_state(self, _new_state: str) -> None:
-        self.async_write_ha_state()
-
-    @property
-    def native_value(self) -> str:
-        state = self._auth.state
-        if state == "refreshing":
-            # service_health only reports ok/auth_needed/error per contract
-            return "ok"
-        return state
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        last_success = next(
-            (c.last_success for c in self.coordinator.communities.values() if c.last_success),
-            None,
-        )
-        return {
-            "last_check": self.coordinator.last_check,
-            "last_success": last_success,
-            "access_exp": self._auth.access_token_exp,
-            "refresh_exp": self._auth.refresh_token_exp,
-            "communities": self.coordinator.community_ids,
-            "next_poll": self.coordinator.next_poll,
-            "last_error": self._auth.last_error,
-        }

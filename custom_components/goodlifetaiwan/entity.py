@@ -1,39 +1,11 @@
-"""Shared helpers for entity setup (DeviceInfo, slug, unique_id)."""
+"""Shared helpers for entity setup (DeviceInfo, unique_id)."""
 
 from __future__ import annotations
 
-import re
-
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .auth import mask_phone
 from .const import DOMAIN
 from .coordinator import CommunityState
-
-
-def community_slug(name: str, community_unit_id: int, community_id: int) -> str:
-    """Derive a stable, ASCII-only slug for display.
-
-    Strategy:
-    - Lower-snake-case ASCII letters/digits from the community name.
-    - Append last-4 of the unit id for uniqueness across same-name communities.
-    - If nothing ASCII survives (e.g., pure Chinese name), fall back to ``community_id``.
-    """
-    ascii_only = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
-    last4 = str(community_unit_id)[-4:]
-    if ascii_only:
-        return f"{ascii_only}_{last4}"
-    return f"c{community_id}_{last4}"
-
-
-def account_device_info(entry_id: str, phone_number: str) -> DeviceInfo:
-    return DeviceInfo(
-        identifiers={(DOMAIN, f"{entry_id}__account")},
-        name=f"GoodLifeTaiwan account {mask_phone(phone_number)}",
-        manufacturer="Taiwan Secom",
-        model="account",
-        configuration_url="https://www.glf.tw",
-    )
 
 
 def community_device_info(entry_id: str, state: CommunityState) -> DeviceInfo:

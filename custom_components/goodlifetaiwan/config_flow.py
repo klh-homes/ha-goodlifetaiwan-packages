@@ -19,6 +19,7 @@ from homeassistant.helpers.storage import Store
 
 from .api import ApiResponseError, GoodLifeApi, NetworkError, TokenBundle
 from .const import (
+    CONF_AUTO_REGENERATE_PICKUP_CODE,
     CONF_COMMUNITY_UNIT_IDS,
     CONF_MEMBER_INFO,
     CONF_PHONE_NUMBER,
@@ -249,13 +250,15 @@ class GoodLifeOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
-        current = self.entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_SEC)
+        current_interval = self.entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_SEC)
+        current_auto = self.entry.options.get(CONF_AUTO_REGENERATE_PICKUP_CODE, False)
         schema = vol.Schema(
             {
-                vol.Optional(CONF_SCAN_INTERVAL, default=current): vol.All(
+                vol.Optional(CONF_SCAN_INTERVAL, default=current_interval): vol.All(
                     vol.Coerce(int),
                     vol.Range(min=MIN_SCAN_INTERVAL_SEC, max=MAX_SCAN_INTERVAL_SEC),
-                )
+                ),
+                vol.Optional(CONF_AUTO_REGENERATE_PICKUP_CODE, default=current_auto): bool,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

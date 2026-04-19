@@ -1,4 +1,4 @@
-"""Tests for goodlifetaiwan.request_qr / send_sms / submit_code."""
+"""Tests for goodlifetaiwan.request_pickup_code / send_sms / submit_code."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from custom_components.goodlifetaiwan.const import (
     DOMAIN,
     EVENT_AUTH_SMS_SENT,
     EVENT_AUTH_SUCCESS,
-    SERVICE_REQUEST_QR,
+    SERVICE_REQUEST_PICKUP_CODE,
     SERVICE_SEND_SMS,
     SERVICE_SUBMIT_CODE,
     STORAGE_KEY_FMT,
@@ -90,7 +90,7 @@ async def _setup(hass, entry: MockConfigEntry, fresh_access: str, refresh: str) 
         await hass.async_block_till_done()
 
 
-async def test_request_qr_happy_path(hass, fresh_access_token, long_refresh_token):
+async def test_request_pickup_code_happy_path(hass, fresh_access_token, long_refresh_token):
     entry = _make_entry(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
@@ -108,7 +108,7 @@ async def test_request_qr_happy_path(hass, fresh_access_token, long_refresh_toke
         )
         result = await hass.services.async_call(
             DOMAIN,
-            SERVICE_REQUEST_QR,
+            SERVICE_REQUEST_PICKUP_CODE,
             {},
             blocking=True,
             return_response=True,
@@ -120,7 +120,9 @@ async def test_request_qr_happy_path(hass, fresh_access_token, long_refresh_toke
     assert png.startswith(b"\x89PNG\r\n\x1a\n")
 
 
-async def test_request_qr_when_auth_needed_raises(hass, fresh_access_token, long_refresh_token):
+async def test_request_pickup_code_when_auth_needed_raises(
+    hass, fresh_access_token, long_refresh_token
+):
     entry = _make_entry(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
@@ -130,21 +132,25 @@ async def test_request_qr_when_auth_needed_raises(hass, fresh_access_token, long
 
     with pytest.raises(ServiceValidationError):
         await hass.services.async_call(
-            DOMAIN, SERVICE_REQUEST_QR, {}, blocking=True, return_response=True
+            DOMAIN, SERVICE_REQUEST_PICKUP_CODE, {}, blocking=True, return_response=True
         )
 
 
-async def test_request_qr_ambiguous_community_raises(hass, fresh_access_token, long_refresh_token):
+async def test_request_pickup_code_ambiguous_community_raises(
+    hass, fresh_access_token, long_refresh_token
+):
     entry = _make_entry(hass, community_ids=[110412, 110413])
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     with pytest.raises(ServiceValidationError):
         await hass.services.async_call(
-            DOMAIN, SERVICE_REQUEST_QR, {}, blocking=True, return_response=True
+            DOMAIN, SERVICE_REQUEST_PICKUP_CODE, {}, blocking=True, return_response=True
         )
 
 
-async def test_request_qr_resolves_explicit_community(hass, fresh_access_token, long_refresh_token):
+async def test_request_pickup_code_resolves_explicit_community(
+    hass, fresh_access_token, long_refresh_token
+):
     entry = _make_entry(hass, community_ids=[110412, 110413])
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
@@ -162,7 +168,7 @@ async def test_request_qr_resolves_explicit_community(hass, fresh_access_token, 
         )
         result = await hass.services.async_call(
             DOMAIN,
-            SERVICE_REQUEST_QR,
+            SERVICE_REQUEST_PICKUP_CODE,
             {"community_id": 1778},
             blocking=True,
             return_response=True,
