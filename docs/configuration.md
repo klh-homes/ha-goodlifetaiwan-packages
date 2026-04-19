@@ -11,27 +11,24 @@
 
 ## Entities created
 
+v0.3 runs one coordinator per community. Every entity — state and CONFIG-category settings — lives on that community's device. There is no account-level device.
+
 Per community:
 
-| Entity                         | Purpose                                                                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `sensor.*_unpicked`            | Count of unpicked packages; full list in `items` attribute.                                                                |
-| `sensor.*_auth_status`         | Per-community auth state (`ok` / `refreshing` / `auth_needed` / `error`).                                                  |
-| `sensor.*_pickup_code`         | Most recent 5-digit pickup code (clears on expiry unless `switch.*_auto_regenerate_pickup_code` is on).                    |
-| `sensor.*_pickup_code_expires` | Expiry timestamp for the most recent pickup code.                                                                          |
-| `image.*_qr`                   | Most recent QR code as PNG.                                                                                                |
-| `button.*_request_pickup_code` | Press to request a fresh pickup code. Equivalent to calling the `goodlifetaiwan.request_pickup_code` service with no args. |
+| Entity                                 | Default       | Range / values | Purpose                                                                                                                                 |
+| -------------------------------------- | ------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `sensor.*_unpicked`                    | —             | int            | Count of unpicked packages; full list in `items` attribute.                                                                             |
+| `sensor.*_auth_status`                 | —             | enum           | Auth state (`ok` / `refreshing` / `auth_needed` / `error`).                                                                             |
+| `sensor.*_pickup_code`                 | —             | 5-digit string | Most recent 5-digit pickup code.                                                                                                        |
+| `sensor.*_pickup_code_expires`         | —             | timestamp      | Expiry timestamp for the most recent pickup code.                                                                                       |
+| `image.*_qr`                           | —             | PNG            | Most recent QR code image.                                                                                                              |
+| `button.*_request_pickup_code`         | —             | button         | Press to request a fresh pickup code. Same effect as calling the `goodlifetaiwan.request_pickup_code` service with this community's id. |
+| `number.*_poll_interval`               | `300` (5 min) | `60`–`3600` s  | Polling cadence for this community's coordinator. Setting it mutates the live coordinator — no reload.                                  |
+| `switch.*_auto_regenerate_pickup_code` | `on`          | on/off         | When this community's 10-minute pickup code expires: `on` silently requests a new one; `off` clears the sensor.                         |
 
-Per entry (account device, Configuration section):
+The last two are tagged `EntityCategory.CONFIG`, so HA hides them from the default dashboard but they show up under the community device's Configuration section and are fully automatable.
 
-| Entity                                 | Default       | Range / values | Purpose                                                                                                                 |
-| -------------------------------------- | ------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `number.*_poll_interval`               | `300` (5 min) | `60`–`3600` s  | Coordinator polling cadence. Setting it here updates the live coordinator — no integration reload needed.               |
-| `switch.*_auto_regenerate_pickup_code` | `off`         | on/off         | When the 10-minute pickup code expires: `off` clears the sensor; `on` silently requests a new one. ⚠️ see caveat below. |
-
-⚠️ **`switch.*_auto_regenerate_pickup_code` caveat:** the upstream API does not document whether issuing a new code invalidates the previous one. With the toggle on, the integration requests a fresh code every ~10 minutes whether anyone is using the current one, which could theoretically invalidate a code the user is actively trying to use at the pickup counter. Leaving it off (the default) means the dashboard shows "no active code" after 10 minutes and you press the button / call the service when you actually need one.
-
-These per-entry entities live on the **account device** and are tagged `EntityCategory.CONFIG`, so HA hides them from the default dashboard but they appear under the account device's Configuration section and can be referenced in automations.
+**Auto-regenerate default is `on` since v0.3.** Earlier versions defaulted it off because the contract speculated that issuing a new pickup code might invalidate the prior one. Live-testing against the server (documented in CHANGELOG v0.1 known-limitations) proved that's not the case — old codes remain valid up to expiry, and the always-fresh default is safe.
 
 ## Re-auth flow
 

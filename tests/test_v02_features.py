@@ -27,15 +27,20 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.goodlifetaiwan.const import (
     BASE_URL_API,
-    CONF_AUTO_REGENERATE_PICKUP_CODE,
     CONF_COMMUNITY_UNIT_IDS,
     CONF_MEMBER_INFO,
     CONF_PHONE_NUMBER,
-    CONF_SCAN_INTERVAL,
     DOMAIN,
     STORAGE_KEY_FMT,
     STORAGE_VERSION,
+    auto_regenerate_key,
+    scan_interval_key,
 )
+
+# Convenience — this test file's fixture uses community_unit_id=110412.
+_CU = 110412
+_SCAN_KEY = scan_interval_key(_CU)
+_AUTO_KEY = auto_regenerate_key(_CU)
 
 pytestmark = pytest.mark.asyncio
 
@@ -160,7 +165,7 @@ async def test_image_state_updates_on_snapshot(hass, fresh_access_token, long_re
 async def test_expiry_clears_snapshot_when_auto_regen_off(
     hass, fresh_access_token, long_refresh_token
 ):
-    entry = _entry(hass, options={CONF_AUTO_REGENERATE_PICKUP_CODE: False})
+    entry = _entry(hass, options={_AUTO_KEY: False})
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     # Schedule the QR expiry ~30s in the future relative to HA's clock.
@@ -202,7 +207,7 @@ async def test_expiry_clears_snapshot_when_auto_regen_off(
 
 
 async def test_expiry_regenerates_when_auto_regen_on(hass, fresh_access_token, long_refresh_token):
-    entry = _entry(hass, options={CONF_AUTO_REGENERATE_PICKUP_CODE: True})
+    entry = _entry(hass, options={_AUTO_KEY: True})
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     now = dt_util.utcnow()
@@ -268,7 +273,7 @@ async def test_scan_interval_number_entity_mutates_coordinator(
     entry = _entry(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
-    number_id = "number.goodlifetaiwan_account_5678_poll_interval"
+    number_id = "number.goodlifetaiwan_she_qu_a_poll_interval"
     state = hass.states.get(number_id)
     assert state is not None, (
         f"scan_interval number entity missing; known entities: "
@@ -292,16 +297,16 @@ async def test_scan_interval_number_entity_mutates_coordinator(
         )
         await hass.async_block_till_done()
 
-    assert entry.options[CONF_SCAN_INTERVAL] == 300
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    assert coordinator.update_interval == timedelta(seconds=300)
+    assert entry.options[_SCAN_KEY] == 300
+    coordinators = hass.data[DOMAIN][entry.entry_id]["coordinators"]
+    assert coordinators[_CU].update_interval == timedelta(seconds=300)
 
 
 async def test_scan_interval_rejects_out_of_range(hass, fresh_access_token, long_refresh_token):
     entry = _entry(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
-    number_id = "number.goodlifetaiwan_account_5678_poll_interval"
+    number_id = "number.goodlifetaiwan_she_qu_a_poll_interval"
     # 30 is below MIN_SCAN_INTERVAL_SEC=60. NumberEntity schema clamps / rejects.
     # HA raises ServiceValidationError for out-of-range values on number.set_value;
     # pin to that rather than bare Exception so we catch regressions on upgrade.
@@ -320,20 +325,21 @@ async def test_auto_regenerate_switch_toggles_option(hass, fresh_access_token, l
     entry = _entry(hass)
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
-    switch_id = "switch.goodlifetaiwan_account_5678_auto_regenerate_pickup_code"
+    switch_id = "switch.goodlifetaiwan_she_qu_a_auto_regenerate_pickup_code"
     state = hass.states.get(switch_id)
     assert state is not None
-    # Default off
-    assert state.state == "off"
-
-    await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
-    await hass.async_block_till_done()
-
-    assert entry.options[CONF_AUTO_REGENERATE_PICKUP_CODE] is True
-    assert hass.states.get(switch_id).state == "on"
+    # v0.3: default ON — server was verified not to invalidate prior codes
+    # when a new one is issued, so the always-fresh default is safe.
+    assert state.state == "on"
 
     await hass.services.async_call("switch", "turn_off", {"entity_id": switch_id}, blocking=True)
     await hass.async_block_till_done()
 
-    assert entry.options[CONF_AUTO_REGENERATE_PICKUP_CODE] is False
+    assert entry.options[_AUTO_KEY] is False
     assert hass.states.get(switch_id).state == "off"
+
+    await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert entry.options[_AUTO_KEY] is True
+    assert hass.states.get(switch_id).state == "on"

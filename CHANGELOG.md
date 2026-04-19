@@ -6,6 +6,35 @@ While the integration is pre-1.0, minor versions may include breaking changes to
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-19
+
+### Breaking
+
+- **Per-community coordinators.** v0.2 ran one `GoodLifeCoordinator` per entry, holding every community's state. v0.3 runs one coordinator per community. Each owns its own poll cadence, QR snapshot, expiry timer, and auto-regenerate policy. Practical consequences:
+  - One API error on community A no longer fails the whole cycle for community B.
+  - Per-community polling cadences are possible (fast on a busy community, slow on a quiet one).
+  - Event order is unchanged (each community fires its own `package_arrived` / `_picked` events).
+- **Account device removed (final).** v0.1 added it, early-v0.2 removed it, mid-v0.2 re-added it to host per-entry CONFIG entities. v0.3 moves those CONFIG entities to the community device, so the account device has nothing to host and is gone. Each entry now shows exactly one device per community.
+- **Entity ID renames.** `number.*_poll_interval` and `switch.*_auto_regenerate_pickup_code` moved from the account device to the community device, so their auto-generated entity IDs change. Old ones become orphans on upgrade — delete them manually via **Settings → Devices & Services → goodlifetaiwan → Entities**.
+- **Option schema migration.** v0.2 stored `scan_interval_seconds` and `auto_regenerate_pickup_code` as flat entry-level keys. v0.3 stores them per `community_unit_id` with suffixed keys (`scan_interval_seconds__{cu_id}`, `auto_regenerate_pickup_code__{cu_id}`). On first v0.3 setup the integration copies the flat values into each community's suffixed key, then removes the flat keys — so any custom value a v0.2 user set carries forward.
+
+### Added
+
+- `number.*_poll_interval` per community. Setting it mutates only that community's coordinator's `update_interval` and triggers an immediate poll; the other communities keep their cadence.
+- `switch.*_auto_regenerate_pickup_code` per community. Toggling it flips the option under that community's key only.
+- **`switch.*_auto_regenerate_pickup_code` default changed from `off` to `on`.** Earlier versions were conservative because the RE contract speculated that issuing a new pickup code might invalidate prior ones. Live-testing proved that assumption wrong (see the v0.1 known-limitations note that was corrected) — old codes remain valid, so always-fresh is now the default.
+
+### Changed
+
+- `coordinator.async_generate_pickup_code()` takes no arguments (the coordinator already knows its one community). The service handler resolves `community_id` → target coordinator, then calls the no-arg method.
+- `coordinator.async_shutdown_qr_timers()` → `async_shutdown_qr_timer()` (singular). `__init__.async_unload_entry` iterates all coordinators.
+- Coordinator name in HA logs: `goodlifetaiwan_<entry_id_prefix>_c<community_unit_id>` so multi-community setups can be distinguished in debug output.
+
+### Removed
+
+- `community_by_id` and `communities` attributes on `GoodLifeCoordinator` (coordinator now has a single `community` attribute).
+- `account_device_info` helper (no more account device).
+
 ## [0.2.0] - 2026-04-19
 
 ### Breaking
@@ -66,6 +95,7 @@ Initial release.
 - The module-level rate-limit for `send_sms` resets on HA restart. Acceptable — real-world call frequency is near zero.
 - Refresh tokens' lifecycle was initially documented (reverse-engineered) as "single-use rolling". Live-tested against the server in April 2026: that's not accurate. Calling `RefreshMemberToken` issues a new refresh token but does **not** invalidate the caller's original. Verified empirically — three back-to-back calls (reusing the same R0, then a mix of R0 and R1) all returned `COM00001`. So multiple concurrent consumers of the same account (mobile app, HA, dev HA) all coexist safely, each keeping its tokens alive independently up to their 90-day expiry. Tokens are still _rotated_ in the sense that a fresh one comes back on every refresh — the integration writes the latest one to storage — but old ones remain valid for their lifetime.
 
-[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.3.0
 [0.2.0]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.2.0
 [0.1.0]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.1.0

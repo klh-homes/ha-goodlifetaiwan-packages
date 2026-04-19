@@ -18,12 +18,14 @@ from .const import (
     CONF_COMMUNITY_UNIT_IDS,
     CONF_MEMBER_INFO,
     CONF_PHONE_NUMBER,
-    CONF_SCAN_INTERVAL,
-    DEFAULT_SCAN_INTERVAL_SEC,
     DOMAIN,
+    LEGACY_CONF_AUTO_REGENERATE_PICKUP_CODE,
+    LEGACY_CONF_SCAN_INTERVAL,
     PLATFORMS,
     STORAGE_KEY_FMT,
     STORAGE_VERSION,
+    auto_regenerate_key,
+    scan_interval_key,
 )
 from .coordinator import CommunityState, GoodLifeCoordinator
 from .services import async_register_services, async_unregister_services
@@ -35,6 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     await _maybe_migrate_bootstrap_tokens(hass, entry)
+    _maybe_migrate_legacy_options(hass, entry)
 
     session = aiohttp_client.async_get_clientsession(hass)
     api = GoodLifeApi(session)
@@ -53,38 +56,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.entry_id[:8],
         )
 
-    scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_SEC)
-    coordinator = GoodLifeCoordinator(
-        hass, entry, api, auth, communities, scan_interval_seconds=scan_interval
-    )
+    coordinators: dict[int, GoodLifeCoordinator] = {
+        state.community_unit_id: GoodLifeCoordinator(hass, entry, api, auth, state)
+        for state in communities
+    }
 
     hass.data[DOMAIN][entry.entry_id] = {
         "api": api,
         "auth": auth,
-        "coordinator": coordinator,
+        "coordinators": coordinators,
         # Per-entry lock serialising send_sms + submit_code handlers so they
         # can't race across the Store write / state transition boundary.
         "sms_lock": asyncio.Lock(),
     }
 
-    # If we have tokens, poll immediately; otherwise set up entities cold and wait for reauth.
-    if auth.state == "ok" and communities:
-        try:
-            await coordinator.async_config_entry_first_refresh()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning(
-                "first refresh failed for entry %s: %s (entities will still set up)",
-                entry.entry_id[:8],
-                err,
-            )
+    # If we have tokens, poll each community immediately; otherwise set up
+    # entities cold and wait for reauth.
+    if auth.state == "ok" and coordinators:
+        for coord in coordinators.values():
+            try:
+                await coord.async_config_entry_first_refresh()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "first refresh failed for entry=%s community=%s: %s "
+                    "(entities will still set up)",
+                    entry.entry_id[:8],
+                    coord.community.community_id,
+                    err,
+                )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_register_services(hass)
-
-    # No options-update listener: settings are exposed as CONFIG-category
-    # entities (number.*_scan_interval, switch.*_auto_regenerate_pickup_code)
-    # that live-mutate the coordinator directly, so there's nothing to
-    # reload when options change.
 
     # If auth_needed on setup, ask HA to open the reauth flow.
     if auth.state == "auth_needed":
@@ -94,11 +96,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    # Cancel QR expiry timers before tearing down platforms so stray callbacks
-    # don't fire on a dismantled coordinator.
+    # Cancel QR expiry timers on every community's coordinator before tearing
+    # down platforms so stray callbacks don't fire on dismantled coordinators.
     bundle = hass.data.get(DOMAIN, {}).get(entry.entry_id)
     if bundle is not None:
-        await bundle["coordinator"].async_shutdown_qr_timers()
+        for coord in bundle["coordinators"].values():
+            await coord.async_shutdown_qr_timer()
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
@@ -139,6 +142,43 @@ def _build_community_states(entry: ConfigEntry) -> list[CommunityState]:
             )
         )
     return states
+
+
+def _maybe_migrate_legacy_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Copy v0.2 flat option keys into v0.3 per-community keys.
+
+    v0.2 stored ``scan_interval_seconds`` and ``auto_regenerate_pickup_code`` as
+    entry-level options. v0.3 stores them per community_unit_id. On first v0.3
+    setup we propagate each legacy value to every selected community so the
+    user's previous preference isn't silently reset, then strip the legacy keys.
+    Safe to call repeatedly: if no legacy keys exist it's a no-op.
+    """
+    legacy_interval = entry.options.get(LEGACY_CONF_SCAN_INTERVAL)
+    legacy_auto = entry.options.get(LEGACY_CONF_AUTO_REGENERATE_PICKUP_CODE)
+    if legacy_interval is None and legacy_auto is None:
+        return
+
+    community_unit_ids = [int(i) for i in entry.data.get(CONF_COMMUNITY_UNIT_IDS) or []]
+    new_options: dict[str, Any] = {
+        k: v
+        for k, v in entry.options.items()
+        if k
+        not in {
+            LEGACY_CONF_SCAN_INTERVAL,
+            LEGACY_CONF_AUTO_REGENERATE_PICKUP_CODE,
+        }
+    }
+    for cu_id in community_unit_ids:
+        if legacy_interval is not None:
+            new_options.setdefault(scan_interval_key(cu_id), int(legacy_interval))
+        if legacy_auto is not None:
+            new_options.setdefault(auto_regenerate_key(cu_id), bool(legacy_auto))
+
+    hass.config_entries.async_update_entry(entry, options=new_options)
+    _LOGGER.info(
+        "migrated legacy options for entry=%s to per-community keys",
+        entry.entry_id[:8],
+    )
 
 
 async def _maybe_migrate_bootstrap_tokens(hass: HomeAssistant, entry: ConfigEntry) -> None:

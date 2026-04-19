@@ -1,30 +1,19 @@
-"""Shared helpers for entity setup (DeviceInfo, unique_id)."""
+"""Shared helpers for entity setup (DeviceInfo, unique_id).
+
+v0.3 note: the account device was added in v0.1 to host ``sensor.*_service``,
+removed early in v0.2 along with that sensor, re-added later in v0.2 to host
+per-entry CONFIG entities (``number.*_poll_interval``,
+``switch.*_auto_regenerate_pickup_code``), and now removed again in v0.3 —
+those CONFIG entities became per-community and moved to the community device.
+So each entry shows exactly one device per community, nothing else.
+"""
 
 from __future__ import annotations
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .auth import mask_phone
 from .const import DOMAIN
 from .coordinator import CommunityState
-
-
-def account_device_info(entry_id: str, phone_number: str) -> DeviceInfo:
-    """Device hosting entry-level configuration entities (scan interval, auto-regen).
-
-    v0.2.0 note: v0.2's initial commit removed this device because its only
-    occupant (sensor.*_service) was redundant with per-community auth_status.
-    Re-added once per-entry CONFIG-category entities (number + switch) needed
-    a natural home — attaching them to an arbitrary community device would
-    mislead users into thinking they were per-community settings.
-    """
-    return DeviceInfo(
-        identifiers={(DOMAIN, f"{entry_id}__account")},
-        name=f"GoodLifeTaiwan account {mask_phone(phone_number)}",
-        manufacturer="Taiwan Secom",
-        model="account",
-        configuration_url="https://www.glf.tw",
-    )
 
 
 def community_device_info(entry_id: str, state: CommunityState) -> DeviceInfo:

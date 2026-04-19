@@ -29,7 +29,7 @@ from .const import (
     SERVICE_SEND_SMS,
     SERVICE_SUBMIT_CODE,
 )
-from .coordinator import CommunityState, GoodLifeCoordinator
+from .coordinator import GoodLifeCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ def async_unregister_services(hass: HomeAssistant) -> None:
 async def _handle_request_pickup_code(hass: HomeAssistant, call: ServiceCall) -> ServiceResponse:
     entry_id = _resolve_entry_id(hass, call.data.get("entry_id"))
     bundle = hass.data[DOMAIN][entry_id]
-    coordinator: GoodLifeCoordinator = bundle["coordinator"]
+    coordinators: dict[int, GoodLifeCoordinator] = bundle["coordinators"]
     auth = bundle["auth"]
 
     if auth.state == AUTH_STATE_AUTH_NEEDED:
@@ -110,11 +110,11 @@ async def _handle_request_pickup_code(hass: HomeAssistant, call: ServiceCall) ->
             translation_key="auth_required",
         )
 
-    state = _resolve_community(coordinator, call.data.get("community_id"))
+    coordinator = _resolve_coordinator(coordinators, call.data.get("community_id"))
 
     started = time.time()
     try:
-        snap = await coordinator.async_generate_pickup_code(state.community_unit_id)
+        snap = await coordinator.async_generate_pickup_code()
     except AuthRequired as err:
         raise ServiceValidationError(
             "auth_required",
@@ -130,7 +130,7 @@ async def _handle_request_pickup_code(hass: HomeAssistant, call: ServiceCall) ->
     _LOGGER.info(
         "service=request_pickup_code entry=%s community=%s duration=%sms code=%s",
         entry_id[:8],
-        state.community_id,
+        coordinator.community.community_id,
         duration_ms,
         snap.code,
     )
@@ -198,7 +198,7 @@ async def _handle_submit_code(hass: HomeAssistant, call: ServiceCall) -> Service
     entry_id = _resolve_entry_id(hass, call.data.get("entry_id"))
     bundle = hass.data[DOMAIN][entry_id]
     auth = bundle["auth"]
-    coordinator: GoodLifeCoordinator = bundle["coordinator"]
+    coordinators: dict[int, GoodLifeCoordinator] = bundle["coordinators"]
 
     code = str(call.data.get("code") or "").strip()
     if not re.fullmatch(r"\d{6}", code):
@@ -232,8 +232,10 @@ async def _handle_submit_code(hass: HomeAssistant, call: ServiceCall) -> Service
         except NetworkError as err:
             raise HomeAssistantError(f"network_error: {err}") from err
 
-        # Kick a refresh so entities update immediately.
-        await coordinator.async_request_refresh()
+        # Kick a refresh on every community's coordinator so entities update
+        # immediately after re-auth.
+        for coord in coordinators.values():
+            await coord.async_request_refresh()
 
         _LOGGER.info("service=submit_code entry=%s success=true", entry_id[:8])
 
@@ -267,18 +269,20 @@ def _resolve_entry_id(hass: HomeAssistant, supplied: str | None) -> str:
     )
 
 
-def _resolve_community(coordinator: GoodLifeCoordinator, supplied: int | None) -> CommunityState:
+def _resolve_coordinator(
+    coordinators: dict[int, GoodLifeCoordinator], supplied: int | None
+) -> GoodLifeCoordinator:
     if supplied is not None:
-        state = coordinator.community_by_id(int(supplied))
-        if state is None:
-            raise ServiceValidationError(
-                f"unknown community_id: {supplied}",
-                translation_domain=DOMAIN,
-                translation_key="unknown_community",
-            )
-        return state
-    if len(coordinator.communities) == 1:
-        return next(iter(coordinator.communities.values()))
+        for coord in coordinators.values():
+            if coord.community.community_id == int(supplied):
+                return coord
+        raise ServiceValidationError(
+            f"unknown community_id: {supplied}",
+            translation_domain=DOMAIN,
+            translation_key="unknown_community",
+        )
+    if len(coordinators) == 1:
+        return next(iter(coordinators.values()))
     raise ServiceValidationError(
         "ambiguous — specify community_id (entry has multiple communities)",
         translation_domain=DOMAIN,
