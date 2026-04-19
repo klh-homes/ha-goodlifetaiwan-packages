@@ -46,10 +46,14 @@ pytestmark = pytest.mark.asyncio
 
 
 def _entry(hass, options: dict | None = None) -> MockConfigEntry:
+    # Default auto_regen OFF per community: prevents the v0.3.2 setup hook
+    # from trying to hit CreateCheckoutVerificationCode on every test's
+    # startup. Tests that care about auto_regen on/off flip it explicitly.
+    merged = {_AUTO_KEY: False, **(options or {})}
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="+886912345678",
-        options=options or {},
+        options=merged,
         data={
             CONF_PHONE_NUMBER: "+886912345678",
             CONF_COMMUNITY_UNIT_IDS: [110412],
@@ -207,7 +211,10 @@ async def test_expiry_clears_snapshot_when_auto_regen_off(
 
 
 async def test_expiry_regenerates_when_auto_regen_on(hass, fresh_access_token, long_refresh_token):
-    entry = _entry(hass, options={_AUTO_KEY: True})
+    # Start with auto_regen off — we don't want the v0.3.2 setup hook to race
+    # the test's expiry timing. The manual request_pickup_code call below sets
+    # up the initial code, then we flip the switch on to arm the auto-regen.
+    entry = _entry(hass, options={_AUTO_KEY: False})
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     now = dt_util.utcnow()
@@ -238,6 +245,12 @@ async def test_expiry_regenerates_when_auto_regen_on(hass, fresh_access_token, l
 
         code_sensor_id = "sensor.goodlifetaiwan_she_qu_a_pickup_code"
         assert hass.states.get(code_sensor_id).state == "11111"
+
+        # Now flip auto_regen on (code already present → no initial regen;
+        # only the expiry-timer regen path matters here).
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, _AUTO_KEY: True}
+        )
 
         # Advance past first expiry → timer fires, triggers auto-regen.
         async_fire_time_changed(hass, first_expiry + timedelta(seconds=1))
@@ -322,24 +335,52 @@ async def test_scan_interval_rejects_out_of_range(hass, fresh_access_token, long
 
 
 async def test_auto_regenerate_switch_toggles_option(hass, fresh_access_token, long_refresh_token):
-    entry = _entry(hass)
+    # Fixture default opts auto_regen off for the rest of the suite; here we
+    # want to verify the on/off toggle flow, so explicitly start from off.
+    entry = _entry(hass, options={_AUTO_KEY: False})
     await _setup(hass, entry, fresh_access_token, long_refresh_token)
 
     switch_id = "switch.goodlifetaiwan_she_qu_a_auto_regenerate_pickup_code"
     state = hass.states.get(switch_id)
     assert state is not None
-    # v0.3: default ON — server was verified not to invalidate prior codes
-    # when a new one is issued, so the always-fresh default is safe.
-    assert state.state == "on"
+    assert state.state == "off"
 
-    await hass.services.async_call("switch", "turn_off", {"entity_id": switch_id}, blocking=True)
+    # Flip on — triggers initial regen, so we need to mock the endpoint.
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    expiry = (dt_util.utcnow() + timedelta(minutes=10)).isoformat()
+    with aioresponses() as m:
+        m.post(
+            f"{BASE_URL_API}/resident/api/Package/CreateCheckOutVerificationCode",
+            payload={
+                "code": "COM00001",
+                "data": {
+                    "communityId": 1777,
+                    "verificationCode": "42424",
+                    "expiredTime": expiry,
+                },
+            },
+        )
+        m.get(
+            f"{BASE_URL_API}/resident/api/v76/Package/UnpickedPackages",
+            payload={"code": "COM00001", "data": {"items": []}},
+            repeat=True,
+        )
+        await hass.services.async_call(
+            "switch", "turn_on", {"entity_id": switch_id}, blocking=True
+        )
+        await hass.async_block_till_done()
+
+    assert entry.options[_AUTO_KEY] is True
+    assert hass.states.get(switch_id).state == "on"
+
+    # Flip off — no regen, just option update.
+    await hass.services.async_call(
+        "switch", "turn_off", {"entity_id": switch_id}, blocking=True
+    )
     await hass.async_block_till_done()
 
     assert entry.options[_AUTO_KEY] is False
     assert hass.states.get(switch_id).state == "off"
-
-    await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
-    await hass.async_block_till_done()
-
-    assert entry.options[_AUTO_KEY] is True
-    assert hass.states.get(switch_id).state == "on"

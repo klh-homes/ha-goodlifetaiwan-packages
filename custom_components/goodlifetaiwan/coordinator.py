@@ -311,6 +311,35 @@ class GoodLifeCoordinator(DataUpdateCoordinator[CommunityState]):
         """Cancel the pending expiry timer. Called from async_unload_entry."""
         self._cancel_expire_timer()
 
+    async def async_maybe_generate_initial(self) -> None:
+        """Generate a pickup code iff auto-regen is on and none is held yet.
+
+        Safe to call from multiple triggers (entry setup, switch off→on,
+        post-reauth). The per-community ``qr_lock`` plus the v0.3.1
+        same-code idempotence make accidental double-calls harmless.
+
+        Errors are swallowed with a warning: this is a best-effort "warm
+        the QR" helper, not a hard dependency. The real ``request_pickup_code``
+        service / button press still surface errors to the user.
+        """
+        if self.community.qr is not None:
+            return
+        if self.auth.state != AUTH_STATE_OK:
+            return
+        auto = self.entry.options.get(
+            auto_regenerate_key(self.community_unit_id), True
+        )
+        if not auto:
+            return
+        try:
+            await self.async_generate_pickup_code()
+        except (AuthRequired, ApiResponseError, NetworkError) as err:
+            _LOGGER.warning(
+                "initial pickup code generation for community=%s failed: %s",
+                self.community.community_id,
+                err,
+            )
+
 
 def _render_qr_png(payload: str) -> bytes:
     """Render a PNG for the given payload. Runs in an executor (PIL is blocking)."""

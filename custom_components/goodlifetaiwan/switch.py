@@ -68,3 +68,9 @@ class AutoRegeneratePickupCodeSwitch(CoordinatorEntity[GoodLifeCoordinator], Swi
         # No coordinator reload needed — _handle_expiry reads the option live
         # at each expiry tick, so the next expiry picks up the new value.
         self.async_write_ha_state()
+        # If we just turned auto-regen on and there's no current code,
+        # populate one now — matches user expectation of "always fresh" the
+        # moment they flip the switch. No-op if a code already exists
+        # (idempotent via coordinator.async_maybe_generate_initial).
+        if value:
+            self.hass.async_create_task(self.coordinator.async_maybe_generate_initial())

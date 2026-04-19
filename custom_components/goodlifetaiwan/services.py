@@ -233,9 +233,13 @@ async def _handle_submit_code(hass: HomeAssistant, call: ServiceCall) -> Service
             raise HomeAssistantError(f"network_error: {err}") from err
 
         # Kick a refresh on every community's coordinator so entities update
-        # immediately after re-auth.
+        # immediately after re-auth. Also warm the pickup code for any
+        # community whose auto-regen is on but has no current code yet
+        # (common right after a long offline window where tokens died and
+        # the expiry timer cleared state).
         for coord in coordinators.values():
             await coord.async_request_refresh()
+            await coord.async_maybe_generate_initial()
 
         _LOGGER.info("service=submit_code entry=%s success=true", entry_id[:8])
 

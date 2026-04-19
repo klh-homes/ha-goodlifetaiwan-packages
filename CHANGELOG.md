@@ -6,6 +6,16 @@ While the integration is pre-1.0, minor versions may include breaking changes to
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-19
+
+### Added
+
+- **Auto-populate pickup code when auto-regenerate is on.** Previously, even with `switch.*_auto_regenerate_pickup_code` enabled, dashboards showed `unknown` for `sensor.*_pickup_code` until the user manually pressed the button or called the service at least once — the regen timer only fired on _expiry_ of an existing code, so a cold start with no code was a no-op. v0.3.2 warms a fresh code at three trigger points when auto-regen is on **and** no current code is held:
+  1. On entry setup (e.g. HA restart).
+  2. When the switch transitions `off → on`.
+  3. After a successful re-auth via `goodlifetaiwan.submit_code` (useful when a long offline window expired both tokens and the prior code).
+     Idempotent: already-held codes are left untouched. No-op when auth is not `ok` (re-auth flow will trigger it once tokens return).
+
 ## [0.3.1] - 2026-04-19
 
 ### Fixed

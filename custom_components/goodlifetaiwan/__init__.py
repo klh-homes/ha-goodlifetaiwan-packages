@@ -84,6 +84,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     coord.community.community_id,
                     err,
                 )
+        # If auto-regenerate is on for a community, warm its pickup code now
+        # so dashboards show a valid code immediately after HA startup
+        # (instead of waiting for the user to press the button). Awaited
+        # here (not fire-and-forget) so tests don't leave dangling tasks
+        # hitting the network after teardown.
+        for coord in coordinators.values():
+            await coord.async_maybe_generate_initial()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_register_services(hass)

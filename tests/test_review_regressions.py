@@ -34,6 +34,7 @@ from custom_components.goodlifetaiwan.const import (
     SERVICE_SUBMIT_CODE,
     STORAGE_KEY_FMT,
     STORAGE_VERSION,
+    auto_regenerate_key,
 )
 from tests.conftest import jwt_with_exp
 
@@ -44,6 +45,9 @@ def _entry(hass) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="+886912345678",
+        # auto_regen off so the v0.3.2 setup hook doesn't try to hit
+        # CreateCheckOutVerificationCode on tests that aren't exercising it.
+        options={auto_regenerate_key(110412): False},
         data={
             CONF_PHONE_NUMBER: "+886912345678",
             CONF_COMMUNITY_UNIT_IDS: [110412],
