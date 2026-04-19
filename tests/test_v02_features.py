@@ -274,8 +274,8 @@ async def test_scan_interval_number_entity_mutates_coordinator(
         f"scan_interval number entity missing; known entities: "
         f"{[e for e in hass.states.async_entity_ids() if 'goodlifetaiwan' in e]}"
     )
-    # Default is DEFAULT_SCAN_INTERVAL_SEC (600)
-    assert float(state.state) == 600.0
+    # Default is DEFAULT_SCAN_INTERVAL_SEC (300)
+    assert float(state.state) == 300.0
 
     with aioresponses() as m:
         # Setting the value triggers async_request_refresh on the coordinator.

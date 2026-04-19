@@ -27,7 +27,7 @@ While the integration is pre-1.0, minor versions may include breaking changes to
 
 - `button.*_request_pickup_code` per community — a UI-native way to trigger pickup-code generation without going through Developer Tools. Shares the same code path as the `request_pickup_code` service and the auto-regenerate timer.
 - Pickup-code expiry handling. When the 10-minute code expires, the integration clears the snapshot by default (sensors go to `unknown`, dashboard shows "no active code"). Users who prefer an always-fresh code can flip `switch.*_auto_regenerate_pickup_code` on.
-- `number.*_poll_interval` (60–3600 s, default 600) — tune polling cadence live without rebuilding the coordinator.
+- `number.*_poll_interval` (60–3600 s, default 300) — tune polling cadence live without rebuilding the coordinator. Default lowered from 600 s (v0.1) to 300 s: 5-minute latency on `package_arrived` events matches typical "new package" notification expectations better than 10. Doubles API call volume (from ~144 to ~288 per community per day), still well under any reasonable rate limit.
 - `switch.*_auto_regenerate_pickup_code` (default off) — toggle silent regeneration at expiry. Caveat noted in strings.json: the server may invalidate prior codes when new ones are issued, which can disrupt an in-progress pickup.
 
 ### Fixed
@@ -64,7 +64,7 @@ Initial release.
 - Only the `UnpickedPackages` surface is polled. Picked / deposited / returned packages are out of scope for v0.1.
 - `auth_required` event debounces across the `auth_needed → refreshing → auth_needed` cycle; one notification per auth failure cycle, not per retry.
 - The module-level rate-limit for `send_sms` resets on HA restart. Acceptable — real-world call frequency is near zero.
-- Refresh tokens are single-use rotating; running the integration on two HA instances for the same account will break one of them.
+- Refresh tokens' lifecycle was initially documented (reverse-engineered) as "single-use rolling". Live-tested against the server in April 2026: that's not accurate. Calling `RefreshMemberToken` issues a new refresh token but does **not** invalidate the caller's original. Verified empirically — three back-to-back calls (reusing the same R0, then a mix of R0 and R1) all returned `COM00001`. So multiple concurrent consumers of the same account (mobile app, HA, dev HA) all coexist safely, each keeping its tokens alive independently up to their 90-day expiry. Tokens are still _rotated_ in the sense that a fresh one comes back on every refresh — the integration writes the latest one to storage — but old ones remain valid for their lifetime.
 
 [Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.2.0

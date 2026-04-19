@@ -24,10 +24,10 @@ Per community:
 
 Per entry (account device, Configuration section):
 
-| Entity                                 | Default        | Range / values | Purpose                                                                                                                                   |
-| -------------------------------------- | -------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `number.*_poll_interval`               | `600` (10 min) | `60`–`3600` s  | Coordinator polling cadence. Setting it here updates the live coordinator — no integration reload needed.                                 |
-| `switch.*_auto_regenerate_pickup_code` | `off`          | on/off         | When the 10-minute pickup code expires: `off` clears the sensor; `on` silently requests a new one. ⚠️ see caveat below.                   |
+| Entity                                 | Default       | Range / values | Purpose                                                                                                                 |
+| -------------------------------------- | ------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `number.*_poll_interval`               | `300` (5 min) | `60`–`3600` s  | Coordinator polling cadence. Setting it here updates the live coordinator — no integration reload needed.               |
+| `switch.*_auto_regenerate_pickup_code` | `off`         | on/off         | When the 10-minute pickup code expires: `off` clears the sensor; `on` silently requests a new one. ⚠️ see caveat below. |
 
 ⚠️ **`switch.*_auto_regenerate_pickup_code` caveat:** the upstream API does not document whether issuing a new code invalidates the previous one. With the toggle on, the integration requests a fresh code every ~10 minutes whether anyone is using the current one, which could theoretically invalidate a code the user is actively trying to use at the pickup counter. Leaving it off (the default) means the dashboard shows "no active code" after 10 minutes and you press the button / call the service when you actually need one.
 
