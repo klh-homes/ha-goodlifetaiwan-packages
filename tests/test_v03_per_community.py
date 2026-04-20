@@ -50,11 +50,13 @@ def _entry_two_communities(hass, options: dict | None = None) -> MockConfigEntry
                         "communityId": 101,
                         "communityUnitId": 1001,
                         "communityName": "Test A",
+                        "isRepresentative": False,
                     },
                     {
                         "communityId": 102,
                         "communityUnitId": 1002,
                         "communityName": "Test B",
+                        "isRepresentative": True,
                     },
                 ],
                 "memberId": "m1",

@@ -252,7 +252,9 @@ def _community_label(unit: dict[str, Any]) -> str:
 
 
 def _member_info_snapshot(member: dict[str, Any]) -> dict[str, Any]:
-    # Keep only fields useful for display / slug derivation; drop PII heavy bits.
+    # Keep fields needed for display, slug derivation, and the pickup-QR
+    # identity payload (see _qr_crypto.build_pickup_qr_content). PII-heavy
+    # bits (IoT device list, residentNo, birthday, gender) are dropped.
     units = member.get("communityUnits") or []
     trimmed = [
         {
@@ -260,6 +262,11 @@ def _member_info_snapshot(member: dict[str, Any]) -> dict[str, Any]:
             "communityUnitId": u.get("communityUnitId"),
             "communityName": u.get("communityName"),
             "shortAddress": u.get("shortAddress"),
+            # The warden scanner expects this flag inside the encrypted QR
+            # body. Default False so snapshots written before v0.3.5 that
+            # never captured the field stay well-formed until the setup-time
+            # backfill in __init__.async_setup_entry refreshes them.
+            "isRepresentative": bool(u.get("isRepresentative")),
         }
         for u in units
     ]

@@ -59,6 +59,7 @@ async def test_flow_happy_path_single_community(hass):
                             "communityUnitId": 1001,
                             "communityName": "Test A",
                             "shortAddress": "6號",
+                            "isRepresentative": False,
                         }
                     ],
                 },
@@ -141,12 +142,14 @@ async def test_flow_multi_community_prompts_selection(hass):
                             "communityUnitId": 1001,
                             "communityName": "Test A",
                             "shortAddress": "6號",
+                            "isRepresentative": False,
                         },
                         {
                             "communityId": 103,
                             "communityUnitId": 1003,
                             "communityName": "Test B",
                             "shortAddress": "8號",
+                            "isRepresentative": True,
                         },
                     ],
                 },

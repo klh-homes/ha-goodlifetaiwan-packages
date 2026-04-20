@@ -58,6 +58,7 @@ def _entry(hass) -> MockConfigEntry:
                         "communityUnitId": 1001,
                         "communityName": "Test A",
                         "shortAddress": "6號",
+                        "isRepresentative": False,
                     }
                 ],
                 "memberId": "m1",

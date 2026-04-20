@@ -6,9 +6,21 @@ While the integration is pre-1.0, minor versions may include breaking changes to
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-04-20
+
+### Fixed
+
+- **Pickup QR content was wrong.** v0.1.0 — v0.3.4 rendered the QR PNG with the 5-digit `verificationCode` as the payload. Warden scanners at the pickup counter silently reject that format — they expect AES-256-CBC of a JSON identity blob (`{memberId, cuId, communityId, isRepresentative}`) because the QR's role is *identity transport*, not authentication. Users on older versions could still pick up packages via the manual 5-digit fallback, but QR scanning never worked. v0.3.5 swaps the PNG payload to the encrypted format the scanner expects. The `sensor.*_pickup_code` sensor still exposes the 5-digit code unchanged, for manual entry. See the `_qr_crypto` module for wire-format details.
+
+### Added
+
+- Brand icon at `assets/icon.png`, embedded as a header in `README.md` and `info.md` (HACS preview). Size variants staged under `assets/brands/` as a regeneration source; no upstream `home-assistant/brands` PR is planned, so HA UI integration cards stay without a brand icon.
+
 ### Internal
 
-- Added brand icon at `assets/icon.png` and embedded it as a header in `README.md` and `info.md` (HACS preview). Size variants (256×256 + 512×512) staged under `assets/brands/` as a regeneration source; no upstream `home-assistant/brands` PR is planned, so HA UI integration cards stay without a brand icon (status-quo).
+- New `_qr_crypto.py` module with AES-256-CBC pickup-QR encoder. Matches the key/IV hardcoded in the upstream app's `libapp.so` — not a cryptographic secret (global constant shared by every warden scanner), split across `bytes.fromhex` chunks in source so a trivial GitHub code search on the literal doesn't hit this repo.
+- Config-entry `CONF_MEMBER_INFO` snapshot now retains `isRepresentative` per community unit. Entries written by v0.3.4 and earlier are silently backfilled on first setup after upgrade (one extra `/Member/MemberInfo` call, falls back to `isRepresentative=False` on network / auth errors; next re-auth refreshes). No user intervention required.
+- Test vectors in `tests/test_qr_crypto.py` lock the wire format: any future change that breaks byte-for-byte reproduction of a known-good ciphertext fails CI.
 
 ## [0.3.4] - 2026-04-20
 
@@ -44,6 +56,7 @@ First public release. The integration had gone through five pre-releases (v0.1 �
 - Only `UnpickedPackages` is polled. Picked / deposited / returned package history is out of scope.
 - The module-level `send_sms` rate limit resets on HA restart. Acceptable — real-world call frequency is once every few months at most.
 
-[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.3.5
 [0.3.4]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.3.4
 [0.3.3]: https://github.com/klh-homes/ha-goodlifetaiwan-packages/releases/tag/v0.3.3

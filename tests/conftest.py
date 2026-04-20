@@ -102,6 +102,7 @@ def mock_config_entry(hass, fresh_access_token, long_refresh_token):
                         "communityUnitId": 1001,
                         "communityName": "測試社區",
                         "shortAddress": "1號1樓",
+                        "isRepresentative": False,
                     }
                 ],
                 "memberId": "m1",

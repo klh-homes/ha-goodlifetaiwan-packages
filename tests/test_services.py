@@ -43,6 +43,7 @@ def _make_entry(hass, community_ids: list[int] | None = None) -> MockConfigEntry
             "communityUnitId": 1001,
             "communityName": "Test A",
             "shortAddress": "1號1樓",
+            "isRepresentative": False,
         }
     ]
     if 1003 in community_ids:
@@ -52,6 +53,7 @@ def _make_entry(hass, community_ids: list[int] | None = None) -> MockConfigEntry
                 "communityUnitId": 1003,
                 "communityName": "Test B",
                 "shortAddress": "8號",
+                "isRepresentative": True,
             }
         )
     # Explicit auto_regen=False per community so expiry timers fired during
