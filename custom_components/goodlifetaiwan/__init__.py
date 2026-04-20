@@ -12,9 +12,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.storage import Store
 
-from .api import GoodLifeApi
-from .auth import AuthManager
+from .api import ApiResponseError, GoodLifeApi, NetworkError
+from .auth import AuthManager, AuthRequired
 from .const import (
+    AUTH_STATE_OK,
     CONF_COMMUNITY_UNIT_IDS,
     CONF_MEMBER_INFO,
     CONF_PHONE_NUMBER,
@@ -48,6 +49,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         api=api,
     )
     await auth.async_load()
+
+    # v0.3.5: refresh CONF_MEMBER_INFO from the API if the stored snapshot
+    # is missing isRepresentative — older snapshots dropped the field and
+    # the pickup-QR encrypter needs it. Silent; failure is non-fatal
+    # (fallback to isRepresentative=False, fixable on re-auth).
+    await _maybe_backfill_member_info(hass, entry, api, auth)
 
     communities = _build_community_states(entry)
     if not communities:
@@ -122,6 +129,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 def _build_community_states(entry: ConfigEntry) -> list[CommunityState]:
     member_info = entry.data.get(CONF_MEMBER_INFO) or {}
+    member_id = str(member_info.get("memberId") or "")
     all_units = {
         int(u["communityUnitId"]): u
         for u in (member_info.get("communityUnits") or [])
@@ -146,6 +154,8 @@ def _build_community_states(entry: ConfigEntry) -> list[CommunityState]:
                 community_unit_id=cu_id,
                 community_name=name,
                 slug="",  # reserved; HA derives entity_ids from device name
+                member_id=member_id,
+                is_representative=bool(unit.get("isRepresentative")),
             )
         )
     return states
@@ -184,6 +194,54 @@ def _maybe_migrate_legacy_options(hass: HomeAssistant, entry: ConfigEntry) -> No
     hass.config_entries.async_update_entry(entry, options=new_options)
     _LOGGER.info(
         "migrated legacy options for entry=%s to per-community keys",
+        entry.entry_id[:8],
+    )
+
+
+async def _maybe_backfill_member_info(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    api: GoodLifeApi,
+    auth: AuthManager,
+) -> None:
+    """Re-fetch member_info if the stored snapshot is missing fields added in v0.3.5.
+
+    v0.3.4 and earlier dropped ``isRepresentative`` when snapshotting the
+    ``/Member/MemberInfo`` response into ``ConfigEntry.data``. v0.3.5 needs
+    that field to build the encrypted pickup-QR payload the warden scanner
+    accepts. Fetch once, silently, only when needed. If we're in
+    ``auth_needed`` or the call fails, fall through — the coordinator uses
+    ``isRepresentative=False`` as a safe default and the next re-auth via
+    the SMS flow will refresh the snapshot.
+    """
+    member_info = entry.data.get(CONF_MEMBER_INFO) or {}
+    units = member_info.get("communityUnits") or []
+    if units and all("isRepresentative" in u for u in units):
+        return
+    if auth.state != AUTH_STATE_OK:
+        return
+
+    try:
+        access = await auth.async_ensure_access_token()
+        fresh = await api.member_info(access)
+    except (AuthRequired, ApiResponseError, NetworkError) as err:
+        _LOGGER.warning(
+            "member_info backfill failed for entry=%s: %s; pickup QR will use "
+            "isRepresentative=False until next re-auth",
+            entry.entry_id[:8],
+            err,
+        )
+        return
+
+    from .config_flow import _member_info_snapshot
+
+    snapshot = _member_info_snapshot(fresh)
+    hass.config_entries.async_update_entry(
+        entry,
+        data={**entry.data, CONF_MEMBER_INFO: snapshot},
+    )
+    _LOGGER.info(
+        "refreshed member_info snapshot for entry=%s (v0.3.5 backfill)",
         entry.entry_id[:8],
     )
 

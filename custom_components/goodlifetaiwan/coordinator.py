@@ -25,6 +25,7 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from ._qr_crypto import build_pickup_qr_content
 from .api import ApiResponseError, GoodLifeApi, NetworkError
 from .auth import AuthManager, AuthRequired
 from .const import (
@@ -84,6 +85,13 @@ class CommunityState:
     community_unit_id: int
     community_name: str
     slug: str
+    # Identity fields needed to build the encrypted pickup-QR payload
+    # (see _qr_crypto.build_pickup_qr_content). member_id is the resident's
+    # phone number as the server stores it. Both populated at entry setup
+    # from CONF_MEMBER_INFO; `is_representative` may be False as a default
+    # for entries written before v0.3.5 until the setup backfill runs.
+    member_id: str = ""
+    is_representative: bool = False
     packages: dict[int, PackageSummary] = field(default_factory=dict)
     last_success: str | None = None
     qr: QrSnapshot | None = None
@@ -251,7 +259,17 @@ class GoodLifeCoordinator(DataUpdateCoordinator[CommunityState]):
                 )
                 return state.qr
 
-            png_bytes = await self.hass.async_add_executor_job(_render_qr_png, code)
+            # The QR a warden scanner reads is NOT the 5-digit code — it's
+            # an AES-256-CBC blob encoding resident identity. The 5-digit
+            # verificationCode stays on `sensor.*_pickup_code` for manual
+            # fallback at the counter. See _qr_crypto for the wire format.
+            qr_payload = build_pickup_qr_content(
+                member_id=state.member_id,
+                cu_id=state.community_unit_id,
+                community_id=state.community_id,
+                is_representative=state.is_representative,
+            )
+            png_bytes = await self.hass.async_add_executor_job(_render_qr_png, qr_payload)
             snap = QrSnapshot(
                 code=code,
                 expires_at=str(data.get("expiredTime") or ""),
